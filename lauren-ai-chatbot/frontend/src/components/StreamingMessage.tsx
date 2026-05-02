@@ -6,6 +6,7 @@
  */
 
 import { cn } from "@/lib/utils";
+import { MarkdownContent } from "@/components/MessageBubble";
 
 interface StreamingMessageProps {
   content: string;
@@ -18,20 +19,24 @@ export function StreamingMessage({ content }: StreamingMessageProps) {
         AI
       </div>
 
-      <div className="max-w-[75%] rounded-2xl rounded-bl-sm px-4 py-3 text-sm leading-relaxed bg-muted text-foreground whitespace-pre-wrap break-words">
-        {content || (
+      <div className="max-w-[75%] rounded-2xl rounded-bl-sm px-4 py-3 text-sm leading-relaxed bg-muted text-foreground break-words">
+        {content ? (
+          <>
+            <MarkdownContent content={content} />
+            {/* Blinking cursor */}
+            <span
+              className={cn(
+                "inline-block w-0.5 h-4 bg-foreground ml-0.5 align-middle",
+                "animate-pulse"
+              )}
+              aria-hidden
+            />
+          </>
+        ) : (
           <span className="text-muted-foreground italic text-xs">
             Thinking…
           </span>
         )}
-        {/* Blinking cursor */}
-        <span
-          className={cn(
-            "inline-block w-0.5 h-4 bg-foreground ml-0.5 align-middle",
-            "animate-pulse"
-          )}
-          aria-hidden
-        />
       </div>
     </div>
   );

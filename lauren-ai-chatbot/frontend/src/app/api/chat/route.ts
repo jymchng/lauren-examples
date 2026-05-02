@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
 
   let backendResponse: Response;
   try {
-    backendResponse = await fetch(`${BACKEND_URL}/api/chat/`, {
+    backendResponse = await fetch(`${BACKEND_URL}/api/agent/`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

@@ -19,17 +19,9 @@
 import { useRef, useState, useCallback, useEffect } from "react";
 import { SendHorizonal } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { MessageBubble, type Message } from "@/components/MessageBubble";
 import { StreamingMessage } from "@/components/StreamingMessage";
-
-const AVAILABLE_MODELS = [
-  { id: "openai/gpt-4o-mini", label: "GPT-4o mini" },
-  { id: "openai/gpt-4o", label: "GPT-4o" },
-  { id: "anthropic/claude-3-5-haiku", label: "Claude 3.5 Haiku" },
-  { id: "meta-llama/llama-3.1-8b-instruct:free", label: "Llama 3.1 8B (free)" },
-];
 
 function parseSSEChunk(chunk: string): Array<{ event: string; data: string }> {
   const events: Array<{ event: string; data: string }> = [];
@@ -40,7 +32,7 @@ function parseSSEChunk(chunk: string): Array<{ event: string; data: string }> {
     if (line.startsWith("event: ")) {
       currentEvent = line.slice(7).trim();
     } else if (line.startsWith("data: ")) {
-      currentData = line.slice(6);
+      currentData += (currentData ? "\n" : "") + line.slice(6);
     } else if (line === "" && (currentEvent || currentData)) {
       events.push({ event: currentEvent, data: currentData });
       currentEvent = "";
@@ -53,12 +45,11 @@ function parseSSEChunk(chunk: string): Array<{ event: string; data: string }> {
 export function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
-  const [model, setModel] = useState(AVAILABLE_MODELS[0].id);
   const [streaming, setStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -75,6 +66,7 @@ export function ChatInterface() {
 
       setError(null);
       setInput("");
+      if (inputRef.current) inputRef.current.style.height = "auto";
 
       const userMessage: Message = {
         id: crypto.randomUUID(),
@@ -96,7 +88,6 @@ export function ChatInterface() {
               role,
               content,
             })),
-            model,
           }),
         });
 
@@ -168,38 +159,25 @@ export function ChatInterface() {
         inputRef.current?.focus();
       }
     },
-    [input, messages, model, streaming]
+    [input, messages, streaming]
   );
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSubmit(e as unknown as React.FormEvent);
     }
   };
 
+  const handleTextareaInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInput(e.target.value);
+    // Auto-resize
+    e.target.style.height = "auto";
+    e.target.style.height = `${Math.min(e.target.scrollHeight, 160)}px`;
+  };
+
   return (
     <div className="flex flex-col h-full">
-      {/* Model selector */}
-      <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-card/50">
-        <label htmlFor="model-select" className="text-xs text-muted-foreground shrink-0">
-          Model:
-        </label>
-        <select
-          id="model-select"
-          value={model}
-          onChange={(e) => setModel(e.target.value)}
-          className="text-xs bg-transparent border border-input rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
-          disabled={streaming}
-        >
-          {AVAILABLE_MODELS.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.label}
-            </option>
-          ))}
-        </select>
-      </div>
-
       {/* Message list */}
       <ScrollArea className="flex-1 px-4 py-4" ref={scrollRef as React.Ref<HTMLDivElement>}>
         {messages.length === 0 && !streaming && (
@@ -224,15 +202,17 @@ export function ChatInterface() {
 
       {/* Input bar */}
       <div className="p-4 border-t border-border bg-card/50">
-        <form onSubmit={handleSubmit} className="flex gap-2">
-          <Input
+        <form onSubmit={handleSubmit} className="flex gap-2 items-end">
+          <textarea
             ref={inputRef}
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={handleTextareaInput}
             onKeyDown={handleKeyDown}
-            placeholder={streaming ? "Waiting for response…" : "Type a message…"}
+            placeholder={streaming ? "Waiting for response…" : "Type a message… (Shift+Enter for new line)"}
             disabled={streaming}
-            className="flex-1"
+            rows={1}
+            className="flex-1 resize-none rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 overflow-y-auto"
+            style={{ minHeight: "40px", maxHeight: "160px" }}
             autoFocus
           />
           <Button

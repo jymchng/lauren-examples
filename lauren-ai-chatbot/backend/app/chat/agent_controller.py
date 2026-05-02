@@ -73,7 +73,7 @@ class AgentController:
                 content = response.content
                 if content:
                     # Yield in small chunks so the browser renders progressively.
-                    chunk_size = 20
+                    chunk_size = 50
                     for i in range(0, len(content), chunk_size):
                         yield ServerSentEvent(event="token", data=content[i : i + chunk_size])
                 yield ServerSentEvent(event="done", data="")

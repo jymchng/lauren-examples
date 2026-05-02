@@ -4,7 +4,7 @@ import { Sparkles, Shield, Zap } from "lucide-react";
 
 export default function Home() {
   return (
-    <main className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-950 dark:to-blue-950 flex flex-col items-center justify-center p-4">
+    <main className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-950 dark:to-blue-950 flex flex-col items-center justify-center px-2 py-4 sm:p-4">
       <div className="w-full max-w-3xl">
         {/* Header */}
         <div className="mb-6 text-center">
@@ -41,7 +41,7 @@ export default function Home() {
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="h-[560px] flex flex-col">
+            <div className="h-[480px] sm:h-[560px] flex flex-col">
               <ChatInterface />
             </div>
           </CardContent>
