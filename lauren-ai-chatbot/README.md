@@ -2,7 +2,7 @@
 
 A full-stack AI chatbot that showcases the core features of **[Lauren](https://github.com/lauren-framework/lauren-framework)** and **[Lauren AI](https://github.com/lauren-framework/lauren-ai)** in a production-ready application.
 
-![Lauren AI Chatbot](https://raw.githubusercontent.com/lauren-framework/lauren-examples/main/lauren-ai-chatbot/assets/lauren-ai-chatbot.PNG)
+![Lauren AI Chatbot](https://raw.githubusercontent.com/lauren-framework/lauren-examples/refs/heads/main/lauren-ai-chatbot/assets/lauren-ai-chatbot.PNG)
 
 ---
 

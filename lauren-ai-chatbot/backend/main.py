@@ -19,6 +19,7 @@ from app.middlewares.logging_middleware import LoggingMiddleware
 from lauren import LaurenFactory
 from lauren.logging import default_logger
 from lauren_ai import (  # noqa: E402
+    AgentRunComplete,
     InMemoryTraceExporter,
     ModelCallComplete,
     TraceStore,
@@ -40,6 +41,18 @@ set_trace_store(trace_store)
 # ---------------------------------------------------------------------------
 # SignalBus — token usage logging
 # ---------------------------------------------------------------------------
+
+
+@signal_bus.on(AgentRunComplete)
+async def _log_agent_run_complete(event: AgentRunComplete) -> None:
+    """Log final cost and turn count after every agent run completes."""
+    logger.info(
+        "AgentRunComplete agent_class=%s turns=%d total_cost_usd=%.6f stop_reason=%s",
+        getattr(event.agent_class, "__name__", str(event.agent_class)),
+        event.turns,
+        event.total_cost_usd,
+        event.stop_reason,
+    )
 
 
 @signal_bus.on(ModelCallComplete)

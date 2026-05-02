@@ -10,10 +10,11 @@ from app.chat.chat_controller import ChatController
 from app.chat.chat_service import ChatService
 from app.crypto.crypto_module import CryptoModule
 from app.metrics.metrics_controller import MetricsController
+from app.team.team_module import TeamModule
 
 
 @module(
-    imports=[CryptoModule, AIModule],
+    imports=[CryptoModule, AIModule, TeamModule],
     controllers=[ChatController, AgentController, MetricsController],
     providers=[ChatService],
 )

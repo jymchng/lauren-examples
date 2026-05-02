@@ -120,7 +120,7 @@ class TestStreamTokens:
                 Message(role="assistant", content="reply"),
                 Message(role="user", content="second"),
             ],
-            model="openai/gpt-4o-mini",
+            model="poolside/laguna-xs.2:free",
         )
         async for _ in svc.stream_tokens(req):
             pass
@@ -138,7 +138,7 @@ class TestStreamTokens:
                 Message(role="system", content="You are helpful."),
                 Message(role="user", content="hello"),
             ],
-            model="openai/gpt-4o-mini",
+            model="poolside/laguna-xs.2:free",
         )
         async for _ in svc.stream_tokens(req):
             pass
