@@ -30,26 +30,31 @@ export default function Home() {
   const [accounts, setAccounts] = useState<AccountSummary[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [accountRefreshKey, setAccountRefreshKey] = useState(0);
 
+  // Auto-select Alice once on mount
   useEffect(() => {
-    fetch("/api/banking/accounts")
+    setSelectedUserId("alice");
+  }, []);
+
+  // Re-fetch the accounts list on mount and after every transfer
+  useEffect(() => {
+    fetch(`/api/banking/accounts?_t=${Date.now()}`)
       .then((r) => r.json())
       .then((data) => {
         if (data.accounts) {
           setAccounts(data.accounts as AccountSummary[]);
-          // Auto-select Alice as the default
-          setSelectedUserId("alice");
         } else {
           setLoadError(data.error ?? "Failed to load accounts");
         }
       })
       .catch((err) => setLoadError(String(err)));
-  }, []);
+  }, [accountRefreshKey]);
 
   const selectedAccount = accounts.find((a) => a.user_id === selectedUserId);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-950 dark:to-blue-950 flex flex-col">
+    <div className="h-screen bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-950 dark:to-blue-950 flex flex-col overflow-hidden">
       {/* ── Top header bar ─────────────────────────────────────────── */}
       <header className="flex-shrink-0 border-b border-border bg-card/80 backdrop-blur-sm px-4 py-3">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
@@ -117,7 +122,7 @@ export default function Home() {
           {selectedUserId && (
             <Card className="shadow-sm flex-shrink-0">
               <CardContent className="p-4">
-                <AccountCard userId={selectedUserId} />
+                <AccountCard key={`${selectedUserId}-${accountRefreshKey}`} userId={selectedUserId} />
               </CardContent>
             </Card>
           )}
@@ -188,6 +193,7 @@ export default function Home() {
                     key={selectedUserId}
                     userId={selectedUserId}
                     userName={selectedAccount.name.split(" ")[0]}
+                    onComplete={() => setAccountRefreshKey((k) => k + 1)}
                   />
                 </div>
               ) : (

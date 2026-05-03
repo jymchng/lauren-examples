@@ -12,9 +12,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
-from lauren import injectable
-from lauren.types import Scope
-
+from lauren import injectable, Scope
 
 @dataclass
 class BankAccount:
@@ -133,3 +131,4 @@ class BankDatabase:
             )
             self._transactions.append(tx)
             return tx
+

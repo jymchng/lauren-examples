@@ -14,7 +14,6 @@
 import { useRef, useState, useCallback, useEffect } from "react";
 import { SendHorizonal } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { MessageBubble, type Message } from "@/components/MessageBubble";
 import { StreamingMessage } from "@/components/StreamingMessage";
 
@@ -40,6 +39,7 @@ function parseSSEChunk(chunk: string): Array<{ event: string; data: string }> {
 interface BankingChatInterfaceProps {
   userId: string;
   userName: string;
+  onComplete?: () => void;
 }
 
 const SUGGESTIONS = [
@@ -49,7 +49,7 @@ const SUGGESTIONS = [
   "What's the account ID for my account?",
 ];
 
-export function BankingChatInterface({ userId, userName }: BankingChatInterfaceProps) {
+export function BankingChatInterface({ userId, userName, onComplete }: BankingChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
@@ -178,9 +178,10 @@ export function BankingChatInterface({ userId, userName }: BankingChatInterfaceP
         setStreaming(false);
         setStreamingContent("");
         inputRef.current?.focus();
+        onComplete?.();
       }
     },
-    [input, messages, streaming, userId, conversationId]
+    [input, messages, streaming, userId, conversationId, onComplete]
   );
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -201,10 +202,7 @@ export function BankingChatInterface({ userId, userName }: BankingChatInterfaceP
   return (
     <div className="flex flex-col h-full">
       {/* Message list */}
-      <ScrollArea
-        className="flex-1 px-4 py-4"
-        ref={scrollRef as React.Ref<HTMLDivElement>}
-      >
+      <div ref={scrollRef} className="flex-1 overflow-y-auto min-h-0 px-4 py-4">
         {isEmpty && (
           <div className="flex flex-col items-center justify-center min-h-[200px] gap-4">
             <p className="text-muted-foreground text-sm">
@@ -236,7 +234,7 @@ export function BankingChatInterface({ userId, userName }: BankingChatInterfaceP
         ))}
 
         {streaming && <StreamingMessage content={streamingContent} />}
-      </ScrollArea>
+      </div>
 
       {/* Error banner */}
       {error && (

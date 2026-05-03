@@ -19,7 +19,7 @@ import time
 
 from lauren_ai import AgentContext, AgentResponse, Completion, ToolResult, agent, use_tools
 
-from app.ai.banking_tools import GetBalanceTool
+from app.ai.banking_tools import GetBalanceTool, TransferFundsTool, GetTransactionHistoryTool
 
 _SYSTEM = """\
 You are the SecureBank CRM Assistant — a friendly, professional AI banking \
@@ -50,8 +50,34 @@ note the attempt and politely decline.
 • Monetary amounts: always format as $X,XXX.XX
 """
 
+logger = logging.getLogger(__name__)
+
 
 @agent(model=None, system=_SYSTEM, max_turns=6)
-@use_tools(GetBalanceTool)
+@use_tools(GetBalanceTool, TransferFundsTool, GetTransactionHistoryTool)
 class BankingCRMAgent:
     """Customer-facing banking assistant with identity-enforcement guardrails."""
+
+    async def on_start(self, ctx: AgentContext) -> None:
+        ctx.metadata["_start"] = time.monotonic()
+        logger.debug("BankingCRMAgent.on_start: turn=%d", ctx.turn)
+
+    async def on_turn_complete(self, completion: Completion, ctx: AgentContext) -> None:
+        # Avoid logging content — may contain account details.
+        logger.debug("BankingCRMAgent.on_turn_complete: turn=%d", ctx.turn)
+
+    async def on_tool_result(self, result: ToolResult, ctx: AgentContext) -> ToolResult | None:
+        if result.is_error:
+            logger.debug("BankingCRMAgent.on_tool_result: id=%s ERROR", result.tool_use_id)
+        else:
+            logger.debug("BankingCRMAgent.on_tool_result: id=%s ok", result.tool_use_id)
+        return None
+
+    async def on_finish(self, response: AgentResponse, ctx: AgentContext) -> None:
+        elapsed = time.monotonic() - ctx.metadata.get("_start", time.monotonic())
+        logger.debug(
+            "BankingCRMAgent.on_finish: turns=%d stop=%s elapsed=%.3fs",
+            response.turns,
+            response.stop_reason,
+            elapsed,
+        )

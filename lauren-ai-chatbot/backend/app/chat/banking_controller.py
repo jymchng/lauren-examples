@@ -55,9 +55,11 @@ class BankingChatController:
         self,
         runner: AgentRunner,
         db: BankDatabase,
+        crm: BankingCRMAgent,
     ) -> None:
         self._runner = runner
         self._db = db
+        self._crm = crm
 
     @post("/chat")
     async def stream(self, body: Json[ChatRequest], request: Request) -> EventStream:
@@ -113,7 +115,7 @@ class BankingChatController:
         async def generate():
             try:
                 response = await self._runner.run(
-                    BankingCRMAgent,
+                    self._crm,
                     full_prompt,
                     conversation_id=body.conversation_id,
                     execution_context=exec_ctx,

@@ -43,6 +43,8 @@ from lauren_ai import ToolContext, tool
 
 from app.banking.bank_db import BankDatabase, Transaction
 
+logger = logging.getLogger(__name__)
+
 
 def _auth_uid(ctx: ToolContext) -> str:
     """Extract the guard-verified user_id from the execution context.
@@ -77,12 +79,19 @@ class GetBalanceTool:
         self._db = db
 
     async def run(self, user_id: str) -> dict:
+        logger.debug("GetBalanceTool.run: user_id=%r", user_id)
         account = self._db.get_account(user_id.lower())
         if not account:
+            logger.debug("GetBalanceTool.run: account not found for user_id=%r", user_id)
             return {
                 "error": f"Unknown account holder '{user_id}'. "
                 "Valid users are: alice, bob, charlie."
             }
+        logger.debug(
+            "GetBalanceTool.run: found account=%s balance=%.2f",
+            account.account_id,
+            account.balance,
+        )
         return {
             "user_id": account.user_id,
             "name": account.name,
@@ -116,12 +125,15 @@ class TransferFundsTool:
         amount: float,
         description: str = "",
     ) -> dict:
+        logger.debug("TransferFundsTool.run: to_user=%r amount=%.2f", to_user, amount)
         # ── Security: read sender from ctx.execution_context.request.state ───
         # ctx.execution_context is a lauren ExecutionContext whose .request was
         # populated by SignatureGuard from the HMAC-signed payload.  The LLM
         # never touches this value; it supplies only the recipient and amount.
         auth_uid = _auth_uid(ctx)
+        logger.debug("TransferFundsTool.run: auth_uid=%r", auth_uid)
         if not auth_uid:
+            logger.debug("TransferFundsTool.run: security error - no auth_uid in execution context")
             return {
                 "error": (
                     "Security error: no authenticated user found in "
@@ -131,6 +143,7 @@ class TransferFundsTool:
 
         from_acct = self._db.get_account(auth_uid)
         if not from_acct:
+            logger.debug("TransferFundsTool.run: security error - invalid account auth_uid=%r", auth_uid)
             return {
                 "error": (
                     f"Security violation: session user '{auth_uid}' "
@@ -146,9 +159,11 @@ class TransferFundsTool:
         )
 
         if isinstance(result, str):
+            logger.debug("TransferFundsTool.run: transfer error: %s", result)
             return {"error": result}
 
         assert isinstance(result, Transaction)
+        logger.debug("TransferFundsTool.run: transfer success tx_id=%s", result.tx_id)
         updated = self._db.get_account(auth_uid)
         return {
             "success": True,
@@ -179,9 +194,12 @@ class GetTransactionHistoryTool:
         self._db = db
 
     async def run(self, ctx: ToolContext, limit: int = 5) -> dict:
+        logger.debug("GetTransactionHistoryTool.run: limit=%d", limit)
         # ── Security: same pattern as TransferFundsTool ───────────────────────
         auth_uid = _auth_uid(ctx)
+        logger.debug("GetTransactionHistoryTool.run: auth_uid=%r", auth_uid)
         if not auth_uid:
+            logger.debug("GetTransactionHistoryTool.run: security error - no auth_uid in execution context")
             return {
                 "error": (
                     "Security error: no authenticated user found in "
@@ -191,6 +209,7 @@ class GetTransactionHistoryTool:
 
         account = self._db.get_account(auth_uid)
         if not account:
+            logger.debug("GetTransactionHistoryTool.run: security error - invalid account auth_uid=%r", auth_uid)
             return {
                 "error": (
                     f"Security violation: session user '{auth_uid}' "
@@ -200,7 +219,11 @@ class GetTransactionHistoryTool:
 
         clamped = max(1, min(limit, 10))
         transactions = self._db.get_transactions(auth_uid, limit=clamped)
-
+        logger.debug(
+            "GetTransactionHistoryTool.run: returning %d transactions account=%s",
+            len(transactions),
+            account.account_id,
+        )
         return {
             "account_holder": account.name,
             "account_id": account.account_id,

@@ -44,6 +44,8 @@ Always tell the user which specialist you are routing to and why.
 Synthesise the specialist's result into a clear, concise final answer.
 """
 
+logger = logging.getLogger(__name__)
+
 
 @agent(model="poolside/laguna-xs.2:free", system=_SYSTEM)
 @use_guardrails(
@@ -59,3 +61,30 @@ class OrchestratorAgent:
       redacts sensitive personal information before it reaches the model.
     - Output: ``LengthFilter`` — caps responses at 8 000 characters.
     """
+
+    async def on_start(self, ctx: AgentContext) -> None:
+        ctx.metadata["_start"] = time.monotonic()
+        logger.debug("OrchestratorAgent.on_start: turn=%d", ctx.turn)
+
+    async def on_turn_complete(self, completion: Completion, ctx: AgentContext) -> None:
+        logger.debug(
+            "OrchestratorAgent.on_turn_complete: turn=%d content_len=%d",
+            ctx.turn,
+            len(completion.content or ""),
+        )
+
+    async def on_tool_result(self, result: ToolResult, ctx: AgentContext) -> ToolResult | None:
+        if result.is_error:
+            logger.debug("OrchestratorAgent.on_tool_result: id=%s ERROR: %s", result.tool_use_id, result.content)
+        else:
+            logger.debug("OrchestratorAgent.on_tool_result: id=%s ok len=%d", result.tool_use_id, len(str(result.content)))
+        return None
+
+    async def on_finish(self, response: AgentResponse, ctx: AgentContext) -> None:
+        elapsed = time.monotonic() - ctx.metadata.get("_start", time.monotonic())
+        logger.debug(
+            "OrchestratorAgent.on_finish: turns=%d stop=%s elapsed=%.3fs",
+            response.turns,
+            response.stop_reason,
+            elapsed,
+        )

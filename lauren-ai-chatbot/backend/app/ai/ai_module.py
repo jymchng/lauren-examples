@@ -54,6 +54,8 @@ from app.ai.signals import signal_bus
 from app.ai.transfer_agent import BankingTransferAgent
 from app.banking.banking_module import BankingModule
 
+logger = logging.getLogger(__name__)
+
 # ── 1. LLM configuration (OpenRouter is OpenAI-compatible) ──────────────────
 
 _llm_config = LLMConfig(
@@ -106,6 +108,7 @@ _cost_tracker = CostTracker(pricing=default_pricing_table())
 @signal_bus.on(ModelCallComplete)
 async def _track_cost(event: ModelCallComplete) -> None:
     """Accumulate token usage into the global CostTracker."""
+    logger.debug("_track_cost: model=%s", getattr(event, "model", "?"))
     await _cost_tracker._on_model_call_complete(event)
 
 

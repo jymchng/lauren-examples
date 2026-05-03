@@ -41,8 +41,9 @@ from app.crypto.signature_guard import SignatureGuard
 class AgentController:
     """Streams agentic responses (with tool use and delegation) as Server-Sent Events."""
 
-    def __init__(self, runner: AgentRunner) -> None:
+    def __init__(self, runner: AgentRunner, agent: OrchestratorAgent) -> None:
         self._runner = runner
+        self._agent = agent
 
     @post("/")
     async def stream(self, body: Json[ChatRequest]) -> EventStream:
@@ -65,7 +66,7 @@ class AgentController:
         async def generate():
             try:
                 response = await self._runner.run(
-                    OrchestratorAgent,
+                    self._agent,
                     prompt,
                     conversation_id=body.conversation_id,
                 )

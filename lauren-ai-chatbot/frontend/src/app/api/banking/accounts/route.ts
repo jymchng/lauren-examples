@@ -13,7 +13,9 @@ export async function GET() {
       cache: "no-store",
     });
     const data = await res.json();
-    return NextResponse.json(data);
+    return NextResponse.json(data, {
+      headers: { "Cache-Control": "no-store" },
+    });
   } catch (err) {
     return NextResponse.json(
       { error: "Failed to reach backend", detail: String(err) },

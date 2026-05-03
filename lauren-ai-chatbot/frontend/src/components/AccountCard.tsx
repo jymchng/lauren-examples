@@ -71,7 +71,7 @@ export function AccountCard({ userId }: AccountCardProps) {
     setError(null);
     setAccount(null);
 
-    fetch(`/api/banking/accounts/${userId}`)
+    fetch(`/api/banking/accounts/${userId}?_t=${Date.now()}`)
       .then((r) => r.json())
       .then((data) => {
         if (!cancelled) {

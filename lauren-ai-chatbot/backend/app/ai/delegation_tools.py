@@ -58,13 +58,20 @@ class DelegateToResearcher:
 
     async def run(self, task: str) -> dict:
         """Run the delegation to the ResearchAgent."""
+        logger.debug("DelegateToResearcher.run: task_len=%d", len(task))
         if self._runner is None:
+            logger.debug("DelegateToResearcher.run: runner not wired")
             return {
                 "error": "AgentRunner not yet wired. Ensure DelegationWiring is in AIModule providers.",
                 "content": "",
             }
         try:
             response = await self._runner.run(self._research, task)
+            logger.debug(
+                "DelegateToResearcher.run: completed turns=%d stop=%s",
+                response.turns,
+                response.stop_reason,
+            )
             return {
                 "content": response.content,
                 "turns": response.turns,
@@ -94,13 +101,20 @@ class DelegateToCodeAssistant:
 
     async def run(self, task: str) -> dict:
         """Run the delegation to the CodeAssistantAgent."""
+        logger.debug("DelegateToCodeAssistant.run: task_len=%d", len(task))
         if self._runner is None:
+            logger.debug("DelegateToCodeAssistant.run: runner not wired")
             return {
                 "error": "AgentRunner not yet wired. Ensure DelegationWiring is in AIModule providers.",
                 "content": "",
             }
         try:
             response = await self._runner.run(self._code, task)
+            logger.debug(
+                "DelegateToCodeAssistant.run: completed turns=%d stop=%s",
+                response.turns,
+                response.stop_reason,
+            )
             return {
                 "content": response.content,
                 "turns": response.turns,

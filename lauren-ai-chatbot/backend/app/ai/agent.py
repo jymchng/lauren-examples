@@ -27,6 +27,8 @@ from lauren_ai import InMemoryUserMemoryStore
 
 _user_memory = InMemoryUserMemoryStore()
 
+logger = logging.getLogger(__name__)
+
 
 @agent(model="poolside/laguna-xs.2:free", system="You are a helpful assistant with access to tools.")
 @remember(store=None, extract=True, inject=True, top_k=3)
@@ -44,3 +46,30 @@ class ChatAgent:
     - Output: ``LengthFilter`` — caps responses at 8 000 characters to prevent runaway output.
     - Memory: ``@remember`` — injects up to 3 relevant past facts; extracts new facts after each turn.
     """
+
+    async def on_start(self, ctx: AgentContext) -> None:
+        ctx.metadata["_start"] = time.monotonic()
+        logger.debug("ChatAgent.on_start: turn=%d", ctx.turn)
+
+    async def on_turn_complete(self, completion: Completion, ctx: AgentContext) -> None:
+        logger.debug(
+            "ChatAgent.on_turn_complete: turn=%d content_len=%d",
+            ctx.turn,
+            len(completion.content or ""),
+        )
+
+    async def on_tool_result(self, result: ToolResult, ctx: AgentContext) -> ToolResult | None:
+        if result.is_error:
+            logger.debug("ChatAgent.on_tool_result: id=%s ERROR: %s", result.tool_use_id, result.content)
+        else:
+            logger.debug("ChatAgent.on_tool_result: id=%s ok len=%d", result.tool_use_id, len(str(result.content)))
+        return None
+
+    async def on_finish(self, response: AgentResponse, ctx: AgentContext) -> None:
+        elapsed = time.monotonic() - ctx.metadata.get("_start", time.monotonic())
+        logger.debug(
+            "ChatAgent.on_finish: turns=%d stop=%s elapsed=%.3fs",
+            response.turns,
+            response.stop_reason,
+            elapsed,
+        )

@@ -19,7 +19,6 @@
 import { useRef, useState, useCallback, useEffect } from "react";
 import { SendHorizonal } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { MessageBubble, type Message } from "@/components/MessageBubble";
 import { StreamingMessage } from "@/components/StreamingMessage";
 
@@ -179,7 +178,7 @@ export function ChatInterface() {
   return (
     <div className="flex flex-col h-full">
       {/* Message list */}
-      <ScrollArea className="flex-1 px-4 py-4" ref={scrollRef as React.Ref<HTMLDivElement>}>
+      <div ref={scrollRef} className="flex-1 overflow-y-auto min-h-0 px-4 py-4">
         {messages.length === 0 && !streaming && (
           <div className="flex h-full min-h-[300px] items-center justify-center text-muted-foreground text-sm">
             Send a message to start chatting
@@ -191,7 +190,7 @@ export function ChatInterface() {
         ))}
 
         {streaming && <StreamingMessage content={streamingContent} />}
-      </ScrollArea>
+      </div>
 
       {/* Error banner */}
       {error && (

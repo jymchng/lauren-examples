@@ -14,6 +14,8 @@ from lauren_ai import team
 from app.ai.code_agent import CodeAssistantAgent
 from app.ai.research_agent import ResearchAgent
 
+logger = logging.getLogger(__name__)
+
 _COORDINATOR_PROMPT = """\
 You are coordinating a research team to complete the following task.
 
@@ -51,3 +53,8 @@ class ResearchTeam:
     ) -> None:
         self.researcher = researcher
         self.code_assistant = code_assistant
+        logger.debug(
+            "ResearchTeam: initialized researcher=%s code_assistant=%s",
+            type(researcher).__name__,
+            type(code_assistant).__name__,
+        )

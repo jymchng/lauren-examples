@@ -29,6 +29,8 @@ from lauren_ai import AgentRunner, ToolContext, tool
 
 from app.ai.transfer_agent import BankingTransferAgent
 
+logger = logging.getLogger(__name__)
+
 
 @tool()
 class DelegateToBankingTransfer:
@@ -56,7 +58,13 @@ class DelegateToBankingTransfer:
         self._runner: AgentRunner | None = runner
 
     async def run(self, ctx: ToolContext, task: str) -> dict:
+        logger.debug(
+            "DelegateToBankingTransfer.run: task_len=%d runner_wired=%s",
+            len(task),
+            self._runner is not None,
+        )
         if not self._runner:
+            logger.debug("DelegateToBankingTransfer.run: runner not wired")
             return {"error": "Transfer service is temporarily unavailable."}
 
         # Forward the server-side execution context intact so that the
@@ -66,6 +74,11 @@ class DelegateToBankingTransfer:
             self._transfer_agent,
             task,
             execution_context=ctx.execution_context,
+        )
+        logger.debug(
+            "DelegateToBankingTransfer.run: completed turns=%d stop=%s",
+            response.turns,
+            response.stop_reason,
         )
         return {"result": response.content, "stop_reason": response.stop_reason}
 
@@ -85,3 +98,4 @@ class BankingDelegationWiring:
         delegation_tool: DelegateToBankingTransfer,
     ) -> None:
         delegation_tool._runner = runner
+        logger.debug("BankingDelegationWiring: AgentRunner wired into DelegateToBankingTransfer")

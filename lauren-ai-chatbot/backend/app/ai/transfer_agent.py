@@ -37,8 +37,34 @@ After every successful transfer, state the transaction ID, updated balance, and 
 recipient name clearly.
 """
 
+logger = logging.getLogger(__name__)
+
 
 @agent(model=None, system=_SYSTEM, max_turns=5)
 @use_tools(GetBalanceTool, TransferFundsTool, GetTransactionHistoryTool)
 class BankingTransferAgent:
     """Back-office transfer execution agent (reached only via CRM delegation)."""
+
+    async def on_start(self, ctx: AgentContext) -> None:
+        ctx.metadata["_start"] = time.monotonic()
+        logger.debug("BankingTransferAgent.on_start: turn=%d", ctx.turn)
+
+    async def on_turn_complete(self, completion: Completion, ctx: AgentContext) -> None:
+        # Avoid logging content — may contain transaction details.
+        logger.debug("BankingTransferAgent.on_turn_complete: turn=%d", ctx.turn)
+
+    async def on_tool_result(self, result: ToolResult, ctx: AgentContext) -> ToolResult | None:
+        if result.is_error:
+            logger.debug("BankingTransferAgent.on_tool_result: id=%s ERROR", result.tool_use_id)
+        else:
+            logger.debug("BankingTransferAgent.on_tool_result: id=%s ok", result.tool_use_id)
+        return None
+
+    async def on_finish(self, response: AgentResponse, ctx: AgentContext) -> None:
+        elapsed = time.monotonic() - ctx.metadata.get("_start", time.monotonic())
+        logger.debug(
+            "BankingTransferAgent.on_finish: turns=%d stop=%s elapsed=%.3fs",
+            response.turns,
+            response.stop_reason,
+            elapsed,
+        )
