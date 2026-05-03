@@ -1,6 +1,3 @@
-# NOTE: Do NOT add `from __future__ import annotations` to this file.
-# The @tool() decorator uses inspect.signature() at decoration time to build
-# the JSON schema, and PEP 563 lazy evaluation breaks that introspection.
 """OrchestratorAgent — top-level agent that routes to specialist sub-agents.
 
 Architecture
@@ -9,14 +6,16 @@ The orchestrator receives every user message from the /api/agent/ endpoint.
 It decides which specialist to delegate to (or answers directly) based on the
 nature of the request:
 
-- Research / URL fetching   → ``delegate_to_researcher``
-- Code execution / maths    → ``delegate_to_code_assistant``
+- Research / URL fetching   → ``DelegateToResearcher``
+- Code execution / maths    → ``DelegateToCodeAssistant``
 - General questions          → answers directly with its own knowledge
 """
 
+from __future__ import annotations
+
 from lauren_ai import LengthFilter, PIIRedactor, PromptInjectionFilter, agent, guardrail, use_tools
 
-from app.ai.delegation_tools import delegate_to_code_assistant, delegate_to_researcher
+from app.ai.delegation_tools import DelegateToCodeAssistant, DelegateToResearcher
 from app.ai.tools import get_current_time
 
 _SYSTEM = """\
@@ -37,7 +36,7 @@ Synthesise the specialist's result into a clear, concise final answer.
     input=[PromptInjectionFilter(), PIIRedactor()],
     output=[LengthFilter(max_chars=8000)],
 )
-@use_tools(delegate_to_researcher, delegate_to_code_assistant, get_current_time)
+@use_tools(DelegateToResearcher, DelegateToCodeAssistant, get_current_time)
 class OrchestratorAgent:
     """Top-level routing agent with access to specialist sub-agents.
 

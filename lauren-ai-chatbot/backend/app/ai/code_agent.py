@@ -1,7 +1,6 @@
-# NOTE: Do NOT add `from __future__ import annotations` to this file.
-# The @tool() decorator uses inspect.signature() at decoration time to build
-# the JSON schema, and PEP 563 lazy evaluation breaks that introspection.
 """CodeAssistantAgent — executes Python and analyses results for the orchestrator."""
+
+from __future__ import annotations
 
 from lauren_ai import LengthFilter, PromptInjectionFilter, agent, guardrail, use_tools
 from lauren_ai._skills import CodeExecutionTool
