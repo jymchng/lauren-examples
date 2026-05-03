@@ -1,14 +1,18 @@
 """Utility tools available to the ChatAgent."""
 
-from __future__ import annotations
+# NOTE: Do NOT add `from __future__ import annotations` to this file.
+# @tool() reads __annotations__ at decoration time; PEP 563 breaks schema generation.
 
 import ast
+import logging
 import operator
 import re
 from datetime import datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from lauren_ai import tool
+
+logger = logging.getLogger(__name__)
 
 
 @tool()
@@ -18,17 +22,21 @@ async def get_current_time(timezone: str = "UTC") -> dict:
     Args:
         timezone: IANA timezone name (e.g. 'UTC', 'America/New_York').
     """
+    logger.debug("get_current_time called: timezone=%r", timezone)
     try:
         tz = ZoneInfo(timezone)
         now = datetime.now(tz=tz)
-        return {
+        result = {
             "timezone": timezone,
             "datetime": now.isoformat(),
             "date": now.strftime("%Y-%m-%d"),
             "time": now.strftime("%H:%M:%S"),
             "utc_offset": str(now.utcoffset()),
         }
+        logger.debug("get_current_time result: %s", result)
+        return result
     except ZoneInfoNotFoundError:
+        logger.debug("get_current_time error: unknown timezone %r", timezone)
         return {
             "error": f"Unknown timezone: {timezone!r}",
             "hint": "Use an IANA timezone name like 'UTC' or 'America/New_York'.",
@@ -78,19 +86,24 @@ async def calculate(expression: str) -> dict:
     Args:
         expression: A math expression like '2 + 2 * 3'.
     """
+    logger.debug("calculate called: expression=%r", expression)
     # Strip whitespace and sanity-check characters
     sanitised = expression.strip()
     if re.search(r"[a-zA-Z_]", sanitised):
+        logger.debug("calculate rejected: expression contains variables or function calls")
         return {"error": "Variables and function calls are not supported.", "expression": expression}
     try:
         tree = ast.parse(sanitised, mode="eval")
         result = _eval_node(tree)
         # Return int when result is a whole number
         display = int(result) if result == int(result) else result
+        logger.debug("calculate result: %r => %r", expression, display)
         return {"expression": expression, "result": display}
     except ZeroDivisionError:
+        logger.debug("calculate error: division by zero in %r", expression)
         return {"error": "Division by zero.", "expression": expression}
     except Exception as exc:  # noqa: BLE001
+        logger.debug("calculate error: could not evaluate %r: %s", expression, exc)
         return {"error": f"Could not evaluate expression: {exc}", "expression": expression}
 
 
@@ -101,6 +114,7 @@ async def word_count(text: str) -> dict:
     Args:
         text: The text to analyse.
     """
+    logger.debug("word_count called: text length=%d chars", len(text))
     words = text.split()
     word_count_val = len(words)
     char_count = len(text)
@@ -108,9 +122,11 @@ async def word_count(text: str) -> dict:
     # Simple sentence split on . ! ?
     sentences = [s.strip() for s in re.split(r"[.!?]+", text) if s.strip()]
     sentence_count = len(sentences)
-    return {
+    result = {
         "word_count": word_count_val,
         "character_count": char_count,
         "character_count_no_spaces": char_no_spaces,
         "sentence_count": sentence_count,
     }
+    logger.debug("word_count result: words=%d, chars=%d, sentences=%d", word_count_val, char_count, sentence_count)
+    return result

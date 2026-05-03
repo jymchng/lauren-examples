@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Lauren AI Chatbot",
+  title: "SecureBank AI — Banking Demo",
   description:
-    "Full-stack AI chatbot showcasing Lauren's SSE streaming, HMAC-signed payloads, guards, interceptors, and middlewares.",
+    "Multi-agent banking demo: CRM agent, Transfer agent, identity verification, and security safeguards built with Lauren AI.",
 };
 
 export default function RootLayout({

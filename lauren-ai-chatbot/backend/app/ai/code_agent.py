@@ -2,7 +2,20 @@
 
 from __future__ import annotations
 
-from lauren_ai import LengthFilter, PromptInjectionFilter, agent, guardrail, use_tools
+import logging
+import time
+
+from lauren_ai import (
+    AgentContext,
+    AgentResponse,
+    Completion,
+    LengthFilter,
+    PromptInjectionFilter,
+    ToolResult,
+    agent,
+    use_guardrails,
+    use_tools,
+)
 from lauren_ai._skills import CodeExecutionTool
 
 from app.ai.tools import calculate, word_count
@@ -16,7 +29,7 @@ from app.ai.tools import calculate, word_count
         "Always show the code you ran and explain the output."
     ),
 )
-@guardrail(
+@use_guardrails(
     input=[PromptInjectionFilter()],
     output=[LengthFilter(max_chars=6000)],
 )

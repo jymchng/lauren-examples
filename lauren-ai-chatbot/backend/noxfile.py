@@ -31,11 +31,16 @@ PYTHON = "3.12"
 
 def _install_dev(session: nox.Session) -> None:
     """Install all local editable packages plus dev extras in one pip call."""
-    session.install(
-        "-e", FRAMEWORK_PATH,
+    session.run(
+        "uv", "pip", "install", "-e", FRAMEWORK_PATH,
         "-e", f"{LAUREN_AI_PATH}[openai]",
         "-e", ".[dev]",
     )
+    # session.install(
+    #     "-e", FRAMEWORK_PATH,
+    #     "-e", f"{LAUREN_AI_PATH}[openai]",
+    #     "-e", ".[dev]",
+    # )
 
 
 # ---------------------------------------------------------------------------

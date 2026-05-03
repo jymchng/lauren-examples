@@ -2,28 +2,26 @@
 
 Architecture notes
 ------------------
-``LLMModule.for_root()`` builds the transport + ``LLMService`` eagerly and
-exposes them as ``use_value`` providers (plus class attributes
-``transport_instance`` / ``llm_service_instance`` for immediate access).
+``LLMModule.for_root()`` builds the transport + ``LLMService`` eagerly.
 
-``AgentModule.for_root()`` wires the ``ToolRegistry`` and ``AgentRunner``
-via ``use_factory`` providers so the DI container resolves them at startup.
-Class-form tools (``DelegateToResearcher``, ``DelegateToCodeAssistant``) are
-auto-injected with their specialist-agent dependencies.  ``DelegationWiring``
-(a singleton in ``AIModule.providers``) then sets their ``_runner`` attribute
-to the fully-built ``AgentRunner`` — breaking the would-be DI cycle without
-``init_delegation()`` calls or module-level globals.
+``AgentModule.for_root()`` wires ALL agents (general-purpose + banking) with
+their tools and the shared ``AgentRunner``.  Class-form tools that need DI
+dependencies (BankDatabase, specialist agents) are auto-injected at startup.
+
+Two wiring singletons break circular references at construction time:
+  - ``DelegationWiring``        → sets AgentRunner on DelegateToResearcher/CodeAssistant
+  - ``BankingDelegationWiring`` → sets AgentRunner on DelegateToBankingTransfer
 
 Observability
 -------------
 The ``AgentRunner`` is wired to the shared ``signal_bus`` so every model call
-emits ``ModelCallComplete`` events.  ``CostTracker`` accumulates usage in
-response to those signals and is exported so controllers can inject it.
-``TokenBudget`` caps per-conversation cost at $0.50 to prevent runaway charges.
+emits ``ModelCallComplete`` events.  ``CostTracker`` accumulates usage and is
+exported so controllers can inject it.
 """
 
 from __future__ import annotations
 
+import logging
 import os
 
 from lauren import module, use_factory, use_value
@@ -40,7 +38,10 @@ from lauren_ai._module import AgentModule, LLMService
 from lauren_ai._tools._registry import ToolRegistry
 
 from app.ai.agent import ChatAgent
+from app.ai.banking_delegation import BankingDelegationWiring, DelegateToBankingTransfer
+from app.ai.banking_tools import GetBalanceTool, GetTransactionHistoryTool, TransferFundsTool
 from app.ai.code_agent import CodeAssistantAgent
+from app.ai.crm_agent import BankingCRMAgent
 from app.ai.delegation_tools import (
     DelegateToCodeAssistant,
     DelegateToResearcher,
@@ -50,6 +51,8 @@ from app.ai.orchestrator_agent import OrchestratorAgent
 from app.ai.research_agent import ResearchAgent
 from app.ai.research_team import ResearchTeam
 from app.ai.signals import signal_bus
+from app.ai.transfer_agent import BankingTransferAgent
+from app.banking.banking_module import BankingModule
 
 # ── 1. LLM configuration (OpenRouter is OpenAI-compatible) ──────────────────
 
@@ -64,25 +67,34 @@ LLMProvider = LLMModule.for_root(_llm_config)
 
 # ── 2. Agent + tool wiring via AgentModule ───────────────────────────────────
 #
-# AgentModule.for_root() registers:
-# - All @agent()-decorated classes as @injectable(scope=SINGLETON) providers
-# - Function-form tools immediately in the ToolRegistry
-# - Class-form tools (DelegateToResearcher, DelegateToCodeAssistant) as DI
-#   providers; the ToolRegistry is built lazily so the container injects the
-#   fully-resolved tool instances (with their specialist-agent dependencies)
-# - AgentRunner via use_factory, injecting Transport + ToolRegistry + LLMConfig
-#
-# Passing imports=LLMProvider makes Transport and LLMConfig visible inside the
-# generated module so the AgentRunner factory can resolve them.
-#
-# DelegationWiring is registered as a provider in AIModule so that Lauren's
-# lifecycle scheduler instantiates it at startup, wiring the fully-built
-# AgentRunner into the delegation tools' _runner attribute.
+# All agents (general-purpose and banking) share one AgentRunner.
+# Class-form tools are resolved by the DI container so their injectable deps
+# (BankDatabase, specialist agents) are injected automatically.
+# BankingModule is imported so BankDatabase is visible to banking tools.
 
 _AgentProvider = AgentModule.for_root(
-    agents=[ChatAgent, OrchestratorAgent, ResearchAgent, CodeAssistantAgent],
-    tools=[DelegateToResearcher, DelegateToCodeAssistant],
-    imports=LLMProvider,
+    agents=[
+        # General-purpose agents
+        ChatAgent,
+        OrchestratorAgent,
+        ResearchAgent,
+        CodeAssistantAgent,
+        # Banking agents
+        BankingCRMAgent,
+        BankingTransferAgent,
+    ],
+    tools=[
+        # General-purpose delegation tools
+        DelegateToResearcher,
+        DelegateToCodeAssistant,
+        # Banking tools (class-form, injected with BankDatabase)
+        GetBalanceTool,
+        TransferFundsTool,
+        GetTransactionHistoryTool,
+        # Banking delegation tool
+        DelegateToBankingTransfer,
+    ],
+    imports=[LLMProvider, BankingModule],
     signals=signal_bus,
 )
 
@@ -113,20 +125,28 @@ _team_runner_provider = use_factory(
 
 
 @module(
-    imports=[LLMProvider, _AgentProvider],
+    imports=[LLMProvider, _AgentProvider, BankingModule],
     providers=[
         _cost_tracker_provider,
         _team_runner_provider,
+        # General delegation wiring
         DelegationWiring,
+        # Banking delegation wiring
+        BankingDelegationWiring,
     ],
     exports=[
         LLMService,
         AgentRunner,
         ToolRegistry,
+        # General-purpose agents
         ChatAgent,
         ResearchAgent,
         CodeAssistantAgent,
         OrchestratorAgent,
+        # Banking agents
+        BankingCRMAgent,
+        BankingTransferAgent,
+        # Services
         TeamRunner,
         CostTracker,
     ],

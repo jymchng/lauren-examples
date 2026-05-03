@@ -13,7 +13,21 @@ nature of the request:
 
 from __future__ import annotations
 
-from lauren_ai import LengthFilter, PIIRedactor, PromptInjectionFilter, agent, guardrail, use_tools
+import logging
+import time
+
+from lauren_ai import (
+    AgentContext,
+    AgentResponse,
+    Completion,
+    LengthFilter,
+    PIIRedactor,
+    PromptInjectionFilter,
+    ToolResult,
+    agent,
+    use_guardrails,
+    use_tools,
+)
 
 from app.ai.delegation_tools import DelegateToCodeAssistant, DelegateToResearcher
 from app.ai.tools import get_current_time
@@ -32,7 +46,7 @@ Synthesise the specialist's result into a clear, concise final answer.
 
 
 @agent(model="poolside/laguna-xs.2:free", system=_SYSTEM)
-@guardrail(
+@use_guardrails(
     input=[PromptInjectionFilter(), PIIRedactor()],
     output=[LengthFilter(max_chars=8000)],
 )

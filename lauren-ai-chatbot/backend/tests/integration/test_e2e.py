@@ -440,7 +440,7 @@ class TestConversationMemoryE2E:
 
 
 class TestGuardrailE2E:
-    """Tests verifying that @guardrail() on ChatAgent integrates correctly."""
+    """Tests verifying that @use_guardrails() on ChatAgent integrates correctly."""
 
     @pytest.mark.asyncio
     async def test_prompt_injection_blocked_at_agent_level(self, client):
@@ -479,28 +479,28 @@ class TestGuardrailE2E:
 
     @pytest.mark.asyncio
     async def test_guardrail_metadata_attached_to_agent_class(self):
-        """Verify @guardrail() set GUARDRAIL_META on ChatAgent."""
+        """Verify @use_guardrails() set USE_GUARDRAILS_META on ChatAgent."""
         from app.ai.agent import ChatAgent
-        from lauren_ai import GUARDRAIL_META
+        from lauren_ai import USE_GUARDRAILS_META
 
-        assert hasattr(ChatAgent, GUARDRAIL_META), "ChatAgent must have guardrail metadata"
-        meta = getattr(ChatAgent, GUARDRAIL_META)
+        assert hasattr(ChatAgent, USE_GUARDRAILS_META), "ChatAgent must have guardrail metadata"
+        meta = getattr(ChatAgent, USE_GUARDRAILS_META)
         assert len(meta.input_guardrails) >= 1
         assert len(meta.output_guardrails) >= 1
 
     def test_guardrail_input_includes_injection_filter(self):
         from app.ai.agent import ChatAgent
-        from lauren_ai import GUARDRAIL_META, PromptInjectionFilter
+        from lauren_ai import USE_GUARDRAILS_META, PromptInjectionFilter
 
-        meta = getattr(ChatAgent, GUARDRAIL_META)
+        meta = getattr(ChatAgent, USE_GUARDRAILS_META)
         types = [type(g) for g in meta.input_guardrails]
         assert PromptInjectionFilter in types
 
     def test_guardrail_output_includes_length_filter(self):
         from app.ai.agent import ChatAgent
-        from lauren_ai import GUARDRAIL_META, LengthFilter
+        from lauren_ai import LengthFilter, USE_GUARDRAILS_META
 
-        meta = getattr(ChatAgent, GUARDRAIL_META)
+        meta = getattr(ChatAgent, USE_GUARDRAILS_META)
         types = [type(g) for g in meta.output_guardrails]
         assert LengthFilter in types
 
@@ -731,8 +731,8 @@ class TestNewFeaturesWiring:
 
     def test_chat_agent_has_guardrail_meta(self):
         from app.ai.agent import ChatAgent
-        from lauren_ai import GUARDRAIL_META
-        assert hasattr(ChatAgent, GUARDRAIL_META)
+        from lauren_ai import USE_GUARDRAILS_META
+        assert hasattr(ChatAgent, USE_GUARDRAILS_META)
 
     def test_cost_tracker_is_wired_to_signal_bus(self):
         """signal_bus must have at least two async handlers registered: cost + logging."""

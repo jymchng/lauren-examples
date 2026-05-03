@@ -3,10 +3,22 @@
 Both tools are class-form ``@tool()`` classes so Lauren's DI container resolves
 their specialist-agent dependencies at startup.
 
-``AgentRunner`` is intentionally **not** a constructor dependency — that would
-create a circular dependency (AgentRunner → ToolRegistry → tool → AgentRunner).
-Instead, ``DelegationWiring`` is a DI singleton whose constructor receives the
-fully-built ``AgentRunner`` and the two tool instances, then wires them together.
+How the circular dependency is broken using ForwardRef
+------------------------------------------------------
+A naïve constructor signature ``__init__(self, ..., runner: AgentRunner)`` would
+create the cycle ``AgentRunner → ToolRegistry → tool → AgentRunner``.
+
+The fix relies on Lauren's ``from __future__ import annotations`` support (PEP 563
+ForwardRef semantics): ``runner: AgentRunner | None = None`` in the constructor
+becomes the string annotation ``"AgentRunner | None"`` at registration time.  When
+the DI container resolves the class signature it evaluates the string to the union
+type ``AgentRunner | None``, which has **no registered provider token** — the
+container raises ``MissingProviderError``, the default ``None`` takes effect, and
+the cycle edge is never formed.
+
+The runner is wired in a second phase: ``DelegationWiring`` is a DI singleton
+registered in ``AIModule.providers``.  Its constructor receives the fully-built
+``AgentRunner`` and the two tool instances and sets their ``_runner`` attribute.
 Lauren's lifecycle scheduler eagerly instantiates every singleton at startup, so
 the wiring always completes before the first request arrives.
 """
@@ -37,10 +49,12 @@ class DelegateToResearcher:
               or topics to investigate.
     """
 
-    def __init__(self, research: ResearchAgent) -> None:
+    def __init__(self, research: ResearchAgent, runner: AgentRunner | None = None) -> None:
         self._research = research
-        # Set by DelegationWiring after the full DI graph is built.
-        self._runner: AgentRunner | None = None
+        # ``runner`` defaults to None: the union annotation ``AgentRunner | None``
+        # has no DI provider, so the container skips injection (ForwardRef
+        # cycle-break).  DelegationWiring sets this before the first request.
+        self._runner = runner
 
     async def run(self, task: str) -> dict:
         """Run the delegation to the ResearchAgent."""
@@ -73,10 +87,10 @@ class DelegateToCodeAssistant:
               snippets or formulas to evaluate.
     """
 
-    def __init__(self, code: CodeAssistantAgent) -> None:
+    def __init__(self, code: CodeAssistantAgent, runner: AgentRunner | None = None) -> None:
         self._code = code
-        # Set by DelegationWiring after the full DI graph is built.
-        self._runner: AgentRunner | None = None
+        # Same ForwardRef cycle-break as DelegateToResearcher above.
+        self._runner = runner
 
     async def run(self, task: str) -> dict:
         """Run the delegation to the CodeAssistantAgent."""
@@ -103,7 +117,8 @@ class DelegationWiring:
 
     Dependency order at startup:
     1. ``ResearchAgent``, ``CodeAssistantAgent``  (no deps)
-    2. ``DelegateToResearcher(research)``, ``DelegateToCodeAssistant(code)``
+    2. ``DelegateToResearcher(research, runner=None)``,
+       ``DelegateToCodeAssistant(code, runner=None)``  ← ForwardRef keeps runner=None
     3. ``ToolRegistry`` built with the tool instances above
     4. ``AgentRunner`` built with Transport + ToolRegistry + LLMConfig
     5. **``DelegationWiring``** — receives AgentRunner + the two tool instances

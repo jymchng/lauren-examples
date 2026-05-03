@@ -2,7 +2,22 @@
 
 from __future__ import annotations
 
-from lauren_ai import LengthFilter, PIIRedactor, PromptInjectionFilter, agent, guardrail, remember, use_tools
+import logging
+import time
+
+from lauren_ai import (
+    AgentContext,
+    AgentResponse,
+    Completion,
+    LengthFilter,
+    PIIRedactor,
+    PromptInjectionFilter,
+    ToolResult,
+    agent,
+    remember,
+    use_guardrails,
+    use_tools,
+)
 
 from app.ai.tools import calculate, get_current_time, word_count
 
@@ -15,7 +30,7 @@ _user_memory = InMemoryUserMemoryStore()
 
 @agent(model="poolside/laguna-xs.2:free", system="You are a helpful assistant with access to tools.")
 @remember(store=None, extract=True, inject=True, top_k=3)
-@guardrail(
+@use_guardrails(
     input=[PromptInjectionFilter(), PIIRedactor()],
     output=[LengthFilter(max_chars=8000)],
 )

@@ -7,6 +7,8 @@ then synthesises a final answer.
 
 from __future__ import annotations
 
+import logging
+
 from lauren_ai import team
 
 from app.ai.code_agent import CodeAssistantAgent
