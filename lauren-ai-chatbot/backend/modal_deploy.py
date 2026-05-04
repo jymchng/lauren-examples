@@ -96,33 +96,38 @@ app = modal.App("securebank-ai-backend")
 
 image = (
     modal.Image.debian_slim(python_version="3.12")
-
-    # ── 1. lauren-framework ─────────────────────────────────────────────
-    .copy_local_dir(
-        str(FRAMEWORK_PATH),
-        "/opt/lauren-framework",
-        ignore=["__pycache__", "*.pyc", ".git", ".venv", "venv", "dist", ".pytest_cache"],
-    )
-    .run_commands("pip install --quiet /opt/lauren-framework")
-
-    # ── 2. lauren-ai ────────────────────────────────────────────────────
-    .copy_local_dir(
-        str(LAUREN_AI_PATH),
-        "/opt/lauren-ai",
-        ignore=["__pycache__", "*.pyc", ".git", ".venv", "venv", "dist", ".pytest_cache"],
-    )
-    .run_commands("pip install --quiet '/opt/lauren-ai[openai]'")
-
+    
     # ── 3. PyPI runtime dependencies ────────────────────────────────────
     .pip_install(
+        "uv",
         "httpx>=0.27",
         "uvicorn[standard]>=0.29",
         "python-dotenv>=1.0",
     )
 
+    # ── 1. lauren-framework ─────────────────────────────────────────────
+    .add_local_dir(
+        str(FRAMEWORK_PATH),
+        "/opt/lauren-framework",
+        ignore=["__pycache__", "*.pyc", ".git", ".venv", "venv", "dist", ".pytest_cache", ".ruff_cache"],
+        copy=True,
+    )
+    .run_commands("uv pip install --quiet /opt/lauren-framework")
+
+    # ── 2. lauren-ai ────────────────────────────────────────────────────
+    .add_local_dir(
+        str(LAUREN_AI_PATH),
+        "/opt/lauren-ai",
+        ignore=["__pycache__", "*.pyc", ".git", ".venv", "venv", "dist", ".pytest_cache", ".ruff_cache"],
+        copy=True,
+    )
+    .run_commands("uv pip install --quiet '/opt/lauren-ai[openai]'")
+
+    
+
     # ── 4. Backend application ──────────────────────────────────────────
     # Exclude secrets and build artefacts; they must not reach the image.
-    .copy_local_dir(
+    .add_local_dir(
         str(_HERE),
         "/backend",
         ignore=[
@@ -138,7 +143,7 @@ image = (
         # Install the `app` package.  --no-deps is safe here because every
         # dependency (lauren, lauren-ai, httpx, uvicorn, python-dotenv) was
         # installed in the layers above; pip skips the index lookup entirely.
-        "pip install --quiet --no-deps /backend",
+        "uv pip install --quiet --no-deps /backend",
     )
 
     # ── 5. Make main.py importable at runtime ───────────────────────────
@@ -161,14 +166,11 @@ image = (
     # at the cost of a ~5-second cold boot on the first call after idle.
     min_containers=1,
 
-    # ASGI is fully asynchronous; a single container can handle many
-    # concurrent requests without blocking.
-    allow_concurrent_inputs=100,
-
     # Agent loops can involve multiple LLM round-trips; 5 minutes gives
     # comfortable headroom even for complex multi-turn conversations.
     timeout=300,
 )
+@modal.concurrent(max_inputs=100)
 @modal.asgi_app()
 def web() -> object:
     """Return the Lauren/FastAPI ASGI application to Modal's gateway.
