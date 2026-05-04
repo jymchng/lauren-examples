@@ -64,6 +64,7 @@ _LAUREN_ALL = _HERE.parent.parent.parent  # .../lauren-all/
 
 FRAMEWORK_PATH = _LAUREN_ALL / "lauren-framework"
 LAUREN_AI_PATH = _LAUREN_ALL / "lauren-ai"
+IGNORE_DIRS = ["__pycache__", "*.pyc", ".git", ".venv", "venv", "dist", ".pytest_cache", ".ruff_cache", "tests"]
 
 # ---------------------------------------------------------------------------
 # Modal application
@@ -109,21 +110,19 @@ image = (
     .add_local_dir(
         str(FRAMEWORK_PATH),
         "/opt/lauren-framework",
-        ignore=["__pycache__", "*.pyc", ".git", ".venv", "venv", "dist", ".pytest_cache", ".ruff_cache"],
+        ignore=IGNORE_DIRS,
         copy=True,
     )
-    .run_commands("uv pip install --quiet /opt/lauren-framework")
+    .run_commands("pip install --quiet /opt/lauren-framework")
 
     # ── 2. lauren-ai ────────────────────────────────────────────────────
     .add_local_dir(
         str(LAUREN_AI_PATH),
         "/opt/lauren-ai",
-        ignore=["__pycache__", "*.pyc", ".git", ".venv", "venv", "dist", ".pytest_cache", ".ruff_cache"],
+        ignore=IGNORE_DIRS,
         copy=True,
     )
-    .run_commands("uv pip install --quiet '/opt/lauren-ai[openai]'")
-
-    
+    .run_commands("pip install --quiet '/opt/lauren-ai[openai]'")
 
     # ── 4. Backend application ──────────────────────────────────────────
     # Exclude secrets and build artefacts; they must not reach the image.
@@ -143,7 +142,7 @@ image = (
         # Install the `app` package.  --no-deps is safe here because every
         # dependency (lauren, lauren-ai, httpx, uvicorn, python-dotenv) was
         # installed in the layers above; pip skips the index lookup entirely.
-        "uv pip install --quiet --no-deps /backend",
+        "pip install --quiet --no-deps /backend",
     )
 
     # ── 5. Make main.py importable at runtime ───────────────────────────
