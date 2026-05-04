@@ -129,14 +129,8 @@ image = (
     .add_local_dir(
         str(_HERE),
         "/backend",
-        ignore=[
-            ".env", ".env.local", ".env.*",   # never bake secrets into the image
-            "__pycache__", "*.pyc",
-            ".venv", "venv",
-            "dist",
-            ".pytest_cache",
-            "tests",                           # tests not needed at runtime
-        ],
+        ignore=IGNORE_DIRS,
+        copy=True,
     )
     .run_commands(
         # Install the `app` package.  --no-deps is safe here because every
