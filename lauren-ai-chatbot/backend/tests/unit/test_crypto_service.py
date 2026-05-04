@@ -98,6 +98,7 @@ class TestVerify:
     def test_verify_uses_compare_digest_timing_safe(self, svc: CryptoService):
         """Verify calls hmac.compare_digest (not ==) to resist timing attacks."""
         import unittest.mock as mock
+
         data = b"hello"
         correct_sig = svc.sign(data)
         with mock.patch("hmac.compare_digest", wraps=hmac.compare_digest) as mocked:
@@ -107,9 +108,8 @@ class TestVerify:
 
     def test_json_payload_roundtrip(self, svc: CryptoService):
         import json
-        payload = json.dumps(
-            {"messages": [{"role": "user", "content": "hello"}], "model": "gpt-4o-mini"}
-        ).encode()
+
+        payload = json.dumps({"messages": [{"role": "user", "content": "hello"}], "model": "gpt-4o-mini"}).encode()
         sig = svc.sign(payload)
         assert svc.verify(payload, sig) is True
         assert svc.verify(payload + b" ", sig) is False

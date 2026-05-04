@@ -2,19 +2,26 @@
 
 Architecture notes
 ------------------
-``LLMModule.for_root()`` builds the transport + ``LLMService`` eagerly.
+Two ``AgentModule.for_root()`` calls are used to break the circular
+dependency between the CRM runner and the delegation tool:
 
-``AgentModule.for_root()`` wires the banking agents (BankingCRMAgent,
-BankingTransferAgent) with their tools and the shared ``AgentRunner``.
-Class-form tools that need DI dependencies (BankDatabase, specialist agents)
-are auto-injected at startup.
+1. ``_TransferAgentProvider`` builds ``TransferAgentRunner`` (a subclass of
+   ``AgentRunner`` used as a distinct DI token) and wires only the transfer
+   tools.  No delegation tool → no cycle.
 
-One wiring singleton breaks a circular reference at construction time:
-  - ``BankingDelegationWiring`` → sets AgentRunner on DelegateToBankingTransfer
+2. ``_CRMAgentProvider`` builds ``AgentRunner`` and wires
+   ``DelegateToBankingTransfer``.  Because ``DelegateToBankingTransfer``
+   injects ``TransferAgentRunner`` (not ``AgentRunner``), there is no
+   circular dependency:
+
+     AgentRunner (CRM) → DelegateToBankingTransfer → TransferAgentRunner
+
+   The two tokens are distinct, so the DI container resolves them
+   independently.
 
 Observability
 -------------
-The ``AgentRunner`` is wired to the shared ``signal_bus`` so every model call
+Both runners are wired to the shared ``signal_bus`` so every model call
 emits ``ModelCallComplete`` events.  ``CostTracker`` accumulates usage and is
 exported so controllers can inject it.
 """
@@ -26,6 +33,7 @@ import os
 
 from lauren import module, use_value
 from lauren_ai import (
+    AgentRunner,
     CostTracker,
     InMemoryConversationStore,
     LLMConfig,
@@ -33,11 +41,9 @@ from lauren_ai import (
     ModelCallComplete,
     default_pricing_table,
 )
-from lauren_ai._agents._runner import AgentRunner
 from lauren_ai._module import AgentModule, LLMService
-from lauren_ai._tools._registry import ToolRegistry
 
-from app.ai.banking_delegation import BankingDelegationWiring, DelegateToBankingTransfer
+from app.ai.banking_delegation import DelegateToBankingTransfer, TransferAgentRunner
 from app.ai.banking_tools import GetBalanceTool, GetTransactionHistoryTool, TransferFundsTool
 from app.ai.crm_agent import BankingCRMAgent
 from app.ai.signals import signal_bus
@@ -60,26 +66,30 @@ LLMProvider = LLMModule.for_root(_llm_config)
 # ── 2. Conversation store — persists message history across AgentRunner.run() calls ─
 _conversation_store = InMemoryConversationStore()
 
-# ── 3. Agent + tool wiring via AgentModule ───────────────────────────────────
+# ── 3. Agent + tool wiring via two AgentModule calls ────────────────────────
 #
-# Banking agents share one AgentRunner.  Class-form tools are resolved by the
-# DI container so their injectable deps (BankDatabase, specialist agents) are
-# injected automatically.  BankingModule is imported so BankDatabase is visible.
+# The Transfer Agent module uses ``runner_class=TransferAgentRunner`` so its
+# runner is registered under a distinct DI token.  This lets
+# ``DelegateToBankingTransfer`` inject ``TransferAgentRunner`` without
+# creating a cycle with the CRM ``AgentRunner``.
 
-_AgentProvider = AgentModule.for_root(
-    agents=[
-        BankingCRMAgent,
-        BankingTransferAgent,
-    ],
+_TransferAgentModule = AgentModule.for_root(
+    agents=[BankingTransferAgent],
     tools=[
-        # Banking tools (class-form, injected with BankDatabase)
-        GetBalanceTool,
         TransferFundsTool,
-        GetTransactionHistoryTool,
-        # Banking delegation tool
-        DelegateToBankingTransfer,
     ],
     imports=[LLMProvider, BankingModule],
+    signals=signal_bus,
+    conversation_store=_conversation_store,
+    runner_class=TransferAgentRunner,
+)
+
+# The CRM Agent module imports _TransferAgentModule so that
+# DelegateToBankingTransfer can see and inject TransferAgentRunner.
+_CRMAgentModule = AgentModule.for_root(
+    agents=[BankingCRMAgent],
+    tools=[DelegateToBankingTransfer, GetBalanceTool, GetTransactionHistoryTool],
+    imports=[LLMProvider, _TransferAgentModule, BankingModule],
     signals=signal_bus,
     conversation_store=_conversation_store,
 )
@@ -100,22 +110,16 @@ _cost_tracker_provider = use_value(provide=CostTracker, value=_cost_tracker)
 
 
 @module(
-    imports=[LLMProvider, _AgentProvider, BankingModule],
+    imports=[LLMProvider, _CRMAgentModule, _TransferAgentModule, BankingModule],
     providers=[
         _cost_tracker_provider,
-        # Banking delegation wiring
-        BankingDelegationWiring,
     ],
     exports=[
         LLMService,
         AgentRunner,
-        ToolRegistry,
-        # Banking agents
         BankingCRMAgent,
-        BankingTransferAgent,
-        # Services
         CostTracker,
     ],
 )
 class AIModule:
-    """Provides banking AI services: agents, runner, and cost tracker."""
+    """Provides banking AI services: agents, runners, and cost tracker."""

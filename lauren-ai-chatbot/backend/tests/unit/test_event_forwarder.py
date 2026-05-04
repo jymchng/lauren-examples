@@ -53,6 +53,7 @@ def forwarder(db):
     with patch("app.ws.event_forwarder.signal_bus") as mock_bus:
         mock_bus.on = MagicMock(return_value=lambda fn: fn)
         from app.ws.event_forwarder import EventForwarder
+
         fwd = EventForwarder(db)
     return fwd
 
@@ -404,6 +405,7 @@ class TestOnTransfer:
         await forwarder.register("bob", bob_ws)
 
         from app.banking.bank_db import Transaction
+
         tx = Transaction(
             tx_id="TXN-001",
             from_user="alice",
@@ -427,6 +429,7 @@ class TestOnTransfer:
     @pytest.mark.asyncio
     async def test_transfer_broadcast_with_no_connections_is_noop(self, forwarder):
         from app.banking.bank_db import Transaction
+
         tx = Transaction(
             tx_id="TXN-002",
             from_user="alice",

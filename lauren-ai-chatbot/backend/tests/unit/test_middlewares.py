@@ -16,6 +16,7 @@ from lauren.types import Headers
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_request(
     method: str = "GET",
     path: str = "/",
@@ -37,10 +38,12 @@ async def _call_next(request: Request) -> Response:
 # CorsMiddleware
 # ---------------------------------------------------------------------------
 
+
 class TestCorsMiddleware:
     @pytest.fixture()
     def mw(self):
         from app.middlewares.cors_middleware import CorsMiddleware
+
         return CorsMiddleware()
 
     @pytest.mark.asyncio
@@ -58,9 +61,11 @@ class TestCorsMiddleware:
     @pytest.mark.asyncio
     async def test_options_does_not_call_next(self, mw):
         called = []
+
         async def next_fn(r):
             called.append(True)
             return _ok_response()
+
         req = _make_request(method="OPTIONS", headers={"origin": "http://localhost:3000"})
         await mw.dispatch(req, next_fn)
         assert not called
@@ -108,10 +113,12 @@ class TestCorsMiddleware:
 # LoggingMiddleware
 # ---------------------------------------------------------------------------
 
+
 class TestLoggingMiddleware:
     @pytest.fixture()
     def mw(self):
         from app.middlewares.logging_middleware import LoggingMiddleware
+
         return LoggingMiddleware()
 
     @pytest.mark.asyncio
@@ -123,6 +130,7 @@ class TestLoggingMiddleware:
     @pytest.mark.asyncio
     async def test_logs_method_and_path(self, mw):
         import logging
+
         req = _make_request(method="POST", path="/api/chat/")
         with patch("app.middlewares.logging_middleware.logger") as mock_log:
             await mw.dispatch(req, _call_next)
@@ -142,6 +150,7 @@ class TestLoggingMiddleware:
     async def test_logs_error_and_reraises(self, mw):
         async def failing_next(r):
             raise ValueError("boom")
+
         req = _make_request()
         with patch("app.middlewares.logging_middleware.logger") as mock_log:
             with pytest.raises(ValueError, match="boom"):

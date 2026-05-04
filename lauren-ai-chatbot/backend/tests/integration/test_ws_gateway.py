@@ -56,9 +56,7 @@ class TestGatewayConnection:
         token = _make_token("alice")
 
         async def run():
-            async with WsTestClient(app).connect(
-                _WS_PATH, query_string=f"token={token}"
-            ) as ws:
+            async with WsTestClient(app).connect(_WS_PATH, query_string=f"token={token}") as ws:
                 assert ws._accepted is True
 
         asyncio.run(run())
@@ -67,9 +65,7 @@ class TestGatewayConnection:
         from lauren.testing import WsTestClient
 
         async def run():
-            async with WsTestClient(app).connect(
-                _WS_PATH, query_string="token=invalid.token"
-            ) as ws:
+            async with WsTestClient(app).connect(_WS_PATH, query_string="token=invalid.token") as ws:
                 assert ws._closed is True
                 assert ws.close_code == 4401
 
@@ -79,9 +75,7 @@ class TestGatewayConnection:
         from lauren.testing import WsTestClient
 
         async def run():
-            async with WsTestClient(app).connect(
-                _WS_PATH, query_string="token="
-            ) as ws:
+            async with WsTestClient(app).connect(_WS_PATH, query_string="token=") as ws:
                 assert ws._closed is True
 
         asyncio.run(run())
@@ -94,12 +88,8 @@ class TestGatewayConnection:
 
         async def run():
             client = WsTestClient(app)
-            async with client.connect(
-                _WS_PATH, query_string=f"token={alice_token}"
-            ) as ws_alice:
-                async with client.connect(
-                    _WS_PATH, query_string=f"token={bob_token}"
-                ) as ws_bob:
+            async with client.connect(_WS_PATH, query_string=f"token={alice_token}") as ws_alice:
+                async with client.connect(_WS_PATH, query_string=f"token={bob_token}") as ws_bob:
                     assert ws_alice._accepted is True
                     assert ws_bob._accepted is True
 
@@ -122,12 +112,11 @@ class TestGatewayRegistration:
         async def run():
             # Resolve the EventForwarder singleton from the DI container
             from app.ws.event_forwarder import EventForwarder
+
             forwarder = app._container.resolve(EventForwarder)  # type: ignore[attr-defined]
             count_before = len(forwarder._connections.get("alice", []))
 
-            async with WsTestClient(app).connect(
-                _WS_PATH, query_string=f"token={token}"
-            ):
+            async with WsTestClient(app).connect(_WS_PATH, query_string=f"token={token}"):
                 count_during = len(forwarder._connections.get("alice", []))
                 assert count_during == count_before + 1
 
@@ -165,9 +154,7 @@ class TestGatewayExpiredToken:
             old_token = svc.create_token("alice")
 
         async def run():
-            async with WsTestClient(app).connect(
-                _WS_PATH, query_string=f"token={old_token}"
-            ) as ws:
+            async with WsTestClient(app).connect(_WS_PATH, query_string=f"token={old_token}") as ws:
                 assert ws._closed is True
 
         asyncio.run(run())

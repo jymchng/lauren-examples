@@ -74,12 +74,6 @@ class MetricsController:
         report = await self._cost.report()
         return {
             **_estimate_to_dict(report.total_estimate),
-            "by_model": {
-                model: _estimate_to_dict(est)
-                for model, est in report.by_model.items()
-            },
-            "by_conversation": {
-                cid: _estimate_to_dict(est)
-                for cid, est in report.by_conversation.items()
-            },
+            "by_model": {model: _estimate_to_dict(est) for model, est in report.by_model.items()},
+            "by_conversation": {cid: _estimate_to_dict(est) for cid, est in report.by_conversation.items()},
         }

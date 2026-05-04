@@ -94,63 +94,75 @@ class EventForwarder:
         if not user_id:
             return
         usage = event.usage
-        await self.send_to_user(user_id, {
-            "type": "token_usage",
-            "model": event.model,
-            "input_tokens": usage.input_tokens if usage else 0,
-            "output_tokens": usage.output_tokens if usage else 0,
-            "cost_usd": event.cost_usd,
-            "duration_ms": round(event.duration_ms),
-        })
+        await self.send_to_user(
+            user_id,
+            {
+                "type": "token_usage",
+                "model": event.model,
+                "input_tokens": usage.input_tokens if usage else 0,
+                "output_tokens": usage.output_tokens if usage else 0,
+                "cost_usd": event.cost_usd,
+                "duration_ms": round(event.duration_ms),
+            },
+        )
 
     async def _on_tool_started(self, event: ToolCallStarted) -> None:
         user_id = current_user_id.get()
         if not user_id:
             return
-        await self.send_to_user(user_id, {
-            "type": "tool_started",
-            "tool_name": event.tool_name,
-            "tool_use_id": event.tool_use_id,
-        })
+        await self.send_to_user(
+            user_id,
+            {
+                "type": "tool_started",
+                "tool_name": event.tool_name,
+                "tool_use_id": event.tool_use_id,
+            },
+        )
 
     async def _on_tool_complete(self, event: ToolCallComplete) -> None:
         user_id = current_user_id.get()
         if not user_id:
             return
-        await self.send_to_user(user_id, {
-            "type": "tool_complete",
-            "tool_name": event.tool_name,
-            "tool_use_id": event.tool_use_id,
-            "success": event.success,
-            "duration_ms": round(event.duration_ms),
-            "error": event.error,
-        })
+        await self.send_to_user(
+            user_id,
+            {
+                "type": "tool_complete",
+                "tool_name": event.tool_name,
+                "tool_use_id": event.tool_use_id,
+                "success": event.success,
+                "duration_ms": round(event.duration_ms),
+                "error": event.error,
+            },
+        )
 
     async def _on_run_complete(self, event: AgentRunComplete) -> None:
         user_id = current_user_id.get()
         if not user_id:
             return
         usage = event.total_usage
-        await self.send_to_user(user_id, {
-            "type": "run_complete",
-            "turns": event.turns,
-            "total_cost_usd": event.total_cost_usd,
-            "total_tokens": (usage.input_tokens + usage.output_tokens) if usage else 0,
-        })
+        await self.send_to_user(
+            user_id,
+            {
+                "type": "run_complete",
+                "turns": event.turns,
+                "total_cost_usd": event.total_cost_usd,
+                "total_tokens": (usage.input_tokens + usage.output_tokens) if usage else 0,
+            },
+        )
 
     # ── Database callback ─────────────────────────────────────────────────────
 
-    async def _on_transfer(
-        self, tx: Transaction, from_balance: float, to_balance: float
-    ) -> None:
+    async def _on_transfer(self, tx: Transaction, from_balance: float, to_balance: float) -> None:
         """Broadcast balance update to all connected users after a transfer."""
-        await self.broadcast({
-            "type": "balance_changed",
-            "from_user": tx.from_user,
-            "to_user": tx.to_user,
-            "amount": tx.amount,
-            "balances": {
-                tx.from_user: from_balance,
-                tx.to_user: to_balance,
-            },
-        })
+        await self.broadcast(
+            {
+                "type": "balance_changed",
+                "from_user": tx.from_user,
+                "to_user": tx.to_user,
+                "amount": tx.amount,
+                "balances": {
+                    tx.from_user: from_balance,
+                    tx.to_user: to_balance,
+                },
+            }
+        )

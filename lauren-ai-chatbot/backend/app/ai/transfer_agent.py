@@ -19,19 +19,17 @@ import time
 
 from lauren_ai import AgentContext, AgentResponse, Completion, ToolResult, agent, use_tools
 
-from app.ai.banking_tools import GetBalanceTool, GetTransactionHistoryTool, TransferFundsTool
+from app.ai.banking_tools import TransferFundsTool
 
 _SYSTEM = """\
 You are the SecureBank Transfer Agent — a back-office system that executes \
-fund transfers and account queries for verified customers.
+fund transfers for verified customers.
 
 ══ CAPABILITIES ══════════════════════════════════════════════════════════════
-• GetBalanceTool             — check any account balance
-• TransferFundsTool          — transfer funds (to_user, amount, optional description)
-• GetTransactionHistoryTool  — list recent transactions for the authenticated user
+• TransferFundsTool  — transfer funds (to_user, amount, optional description)
 
-The sender identity and history ownership are determined automatically from \
-the verified session — you do not need to supply or verify them yourself.
+The sender identity is determined automatically from the verified session — \
+you do not need to supply or verify it yourself.
 
 After every successful transfer, state the transaction ID, updated balance, and \
 recipient name clearly.
@@ -41,7 +39,7 @@ logger = logging.getLogger(__name__)
 
 
 @agent(model=None, system=_SYSTEM, max_turns=5)
-@use_tools(GetBalanceTool, TransferFundsTool, GetTransactionHistoryTool)
+@use_tools(TransferFundsTool)
 class BankingTransferAgent:
     """Back-office transfer execution agent (reached only via CRM delegation)."""
 

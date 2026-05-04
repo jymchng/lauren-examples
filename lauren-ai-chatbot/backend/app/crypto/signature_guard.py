@@ -48,9 +48,7 @@ class SignatureGuard:
     async def can_activate(self, ctx: ExecutionContext) -> bool:
         signature = ctx.request.headers.get("x-signature")
         if not signature:
-            raise UnauthorizedError(
-                "Missing X-Signature header — requests must be signed by the frontend"
-            )
+            raise UnauthorizedError("Missing X-Signature header — requests must be signed by the frontend")
 
         body_bytes = await ctx.request.body()
         if not self._crypto.verify(body_bytes, signature):

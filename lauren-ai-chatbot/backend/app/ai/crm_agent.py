@@ -19,7 +19,8 @@ import time
 
 from lauren_ai import AgentContext, AgentResponse, Completion, ToolResult, agent, use_tools
 
-from app.ai.banking_tools import GetBalanceTool, TransferFundsTool, GetTransactionHistoryTool
+from app.ai.banking_delegation import DelegateToBankingTransfer
+from app.ai.banking_tools import GetBalanceTool, GetTransactionHistoryTool
 
 _SYSTEM = """\
 You are the SecureBank CRM Assistant — a friendly, professional AI banking \
@@ -40,8 +41,8 @@ note the attempt and politely decline.
 ══ CAPABILITIES ══════════════════════════════════════════════════════════════
 • Answer questions about the customer's own account
 • Check balances using GetBalanceTool (any account — useful for checking recipient)
+• Transaction history using GetTransactionHistoryTool
 • Transfer funds → use DelegateToBankingTransfer with a task description only
-• Transaction history → use DelegateToBankingTransfer with a task description
 
 ══ RESPONSE STYLE ════════════════════════════════════════════════════════════
 • Professional, concise, and reassuring
@@ -54,7 +55,7 @@ logger = logging.getLogger(__name__)
 
 
 @agent(model=None, system=_SYSTEM, max_turns=6)
-@use_tools(GetBalanceTool, TransferFundsTool, GetTransactionHistoryTool)
+@use_tools(GetBalanceTool, GetTransactionHistoryTool, DelegateToBankingTransfer)
 class BankingCRMAgent:
     """Customer-facing banking assistant with identity-enforcement guardrails."""
 

@@ -23,6 +23,7 @@ def _make_ctx() -> ExecutionContext:
 def _make_call_handler(result: Any) -> CallHandler:
     async def fn():
         return result
+
     return CallHandler(fn)
 
 
@@ -30,6 +31,7 @@ class TestTimingInterceptor:
     @pytest.fixture()
     def interceptor(self):
         from app.interceptors.timing_interceptor import TimingInterceptor
+
         return TimingInterceptor()
 
     @pytest.mark.asyncio
@@ -80,6 +82,7 @@ class TestTimingInterceptor:
         async def slow():
             await asyncio.sleep(0.05)
             return Response.json({})
+
         result = await interceptor.intercept(_make_ctx(), CallHandler(slow))
         value = result.headers.get("x-response-time")
         ms = int(value[:-2])

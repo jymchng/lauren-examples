@@ -42,9 +42,7 @@ def app():
 
 @pytest_asyncio.fixture()
 async def client(app):
-    async with httpx.AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as c:
+    async with httpx.AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         yield c
 
 

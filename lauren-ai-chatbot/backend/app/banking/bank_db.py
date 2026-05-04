@@ -17,6 +17,7 @@ from typing import Any
 
 from lauren import injectable, Scope
 
+
 @dataclass
 class BankAccount:
     user_id: str
@@ -76,9 +77,7 @@ class BankDatabase:
 
     # ── Listener registration ─────────────────────────────────────────────────
 
-    def add_transfer_listener(
-        self, fn: Callable[..., Awaitable[Any]]
-    ) -> None:
+    def add_transfer_listener(self, fn: Callable[..., Awaitable[Any]]) -> None:
         """Register an async callback invoked after every successful transfer.
 
         The callback signature is ``fn(tx: Transaction, from_balance: float,
@@ -128,10 +127,7 @@ class BankDatabase:
             if amount > 100_000:
                 return "Transfer amount exceeds the $100,000 single-transaction limit"
             if from_acct.balance < amount:
-                return (
-                    f"Insufficient funds. Available: ${from_acct.balance:,.2f}, "
-                    f"requested: ${amount:,.2f}"
-                )
+                return f"Insufficient funds. Available: ${from_acct.balance:,.2f}, requested: ${amount:,.2f}"
 
             from_acct.balance = round(from_acct.balance - amount, 2)
             to_acct.balance = round(to_acct.balance + amount, 2)
@@ -160,4 +156,3 @@ class BankDatabase:
                 pass  # No running event loop (e.g. during unit tests)
 
         return tx
-

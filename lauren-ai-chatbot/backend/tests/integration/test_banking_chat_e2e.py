@@ -75,9 +75,7 @@ def app():
 
 @pytest_asyncio.fixture()
 async def client(app):
-    async with httpx.AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as c:
+    async with httpx.AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         yield c
 
 
@@ -85,12 +83,14 @@ async def client(app):
 # Signature guard on banking endpoint
 # ---------------------------------------------------------------------------
 
+
 class TestBankingChatSignature:
     @pytest.mark.asyncio
     async def test_missing_signature_returns_401(self, client):
         body = _body()
         resp = await client.post(
-            "/api/banking/chat", content=body,
+            "/api/banking/chat",
+            content=body,
             headers={"content-type": "application/json"},
         )
         assert resp.status_code == 401
@@ -99,7 +99,8 @@ class TestBankingChatSignature:
     async def test_wrong_signature_returns_401(self, client):
         body = _body()
         resp = await client.post(
-            "/api/banking/chat", content=body,
+            "/api/banking/chat",
+            content=body,
             headers={"content-type": "application/json", "x-signature": "badc0ffee" * 7},
         )
         assert resp.status_code == 401
@@ -109,7 +110,8 @@ class TestBankingChatSignature:
         body = _body()
         sig = _sign(body)
         resp = await client.post(
-            "/api/banking/chat", content=body + b"x",
+            "/api/banking/chat",
+            content=body + b"x",
             headers={"content-type": "application/json", "x-signature": sig},
         )
         assert resp.status_code == 401
@@ -118,6 +120,7 @@ class TestBankingChatSignature:
 # ---------------------------------------------------------------------------
 # Unknown / invalid users
 # ---------------------------------------------------------------------------
+
 
 class TestBankingChatInvalidUsers:
     @pytest.mark.asyncio
@@ -148,6 +151,7 @@ class TestBankingChatInvalidUsers:
 # ---------------------------------------------------------------------------
 # Valid users — streaming behaviour
 # ---------------------------------------------------------------------------
+
 
 class TestBankingChatValidUsers:
     @pytest.mark.asyncio

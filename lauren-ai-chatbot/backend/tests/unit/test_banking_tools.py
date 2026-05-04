@@ -188,9 +188,7 @@ class TestTransferFundsTool:
     @pytest.mark.asyncio
     async def test_transfer_with_description(self, db):
         tool = TransferFundsTool(db=db)
-        result = await tool.run(
-            ctx=_make_ctx("alice"), to_user="bob", amount=50.0, description="rent"
-        )
+        result = await tool.run(ctx=_make_ctx("alice"), to_user="bob", amount=50.0, description="rent")
         assert result.get("success") is True
         assert result["description"] == "rent"
 

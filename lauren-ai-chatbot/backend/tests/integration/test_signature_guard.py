@@ -52,17 +52,17 @@ def app():
 
 @pytest_asyncio.fixture()
 async def client(app):
-    async with httpx.AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as c:
+    async with httpx.AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         yield c
 
 
-CHAT_BODY = json.dumps({
-    "messages": [{"role": "user", "content": "Hello!"}],
-    "model": "openai/gpt-4o-mini",
-    "user_id": "alice",
-}).encode()
+CHAT_BODY = json.dumps(
+    {
+        "messages": [{"role": "user", "content": "Hello!"}],
+        "model": "openai/gpt-4o-mini",
+        "user_id": "alice",
+    }
+).encode()
 
 _ENDPOINT = "/api/banking/chat"
 
@@ -178,11 +178,13 @@ class TestSignatureGuardValidSignature:
         mock_response = AsyncMock()
         mock_response.content = "OK"
         for content in ["hello", "a longer message with more words"]:
-            body = json.dumps({
-                "messages": [{"role": "user", "content": content}],
-                "model": "openai/gpt-4o-mini",
-                "user_id": "alice",
-            }).encode()
+            body = json.dumps(
+                {
+                    "messages": [{"role": "user", "content": content}],
+                    "model": "openai/gpt-4o-mini",
+                    "user_id": "alice",
+                }
+            ).encode()
             sig = _sign(body)
             with patch("lauren_ai._agents._runner.AgentRunner.run", return_value=mock_response):
                 resp = await client.post(
@@ -199,11 +201,13 @@ class TestSignatureGuardBodyCaching:
     @pytest.mark.asyncio
     async def test_guard_and_controller_share_cached_body(self, client):
         """If body were consumed by the guard and not cached, Json[T] would fail."""
-        body = json.dumps({
-            "messages": [{"role": "user", "content": "cache test"}],
-            "model": "openai/gpt-4o-mini",
-            "user_id": "alice",
-        }).encode()
+        body = json.dumps(
+            {
+                "messages": [{"role": "user", "content": "cache test"}],
+                "model": "openai/gpt-4o-mini",
+                "user_id": "alice",
+            }
+        ).encode()
         sig = _sign(body)
         mock_response = AsyncMock()
         mock_response.content = "OK"

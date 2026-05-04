@@ -112,9 +112,7 @@ def app():
 
 @pytest_asyncio.fixture()
 async def client(app):
-    async with httpx.AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as c:
+    async with httpx.AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         yield c
 
 
@@ -130,7 +128,8 @@ class TestSignatureSecurityE2E:
     async def test_no_signature_401(self, client):
         body = _banking_body()
         resp = await client.post(
-            "/api/banking/chat", content=body,
+            "/api/banking/chat",
+            content=body,
             headers={"content-type": "application/json"},
         )
         assert resp.status_code == 401
@@ -139,7 +138,8 @@ class TestSignatureSecurityE2E:
     async def test_wrong_signature_401(self, client):
         body = _banking_body()
         resp = await client.post(
-            "/api/banking/chat", content=body,
+            "/api/banking/chat",
+            content=body,
             headers={"content-type": "application/json", "x-signature": "badc0ffee" * 7},
         )
         assert resp.status_code == 401
@@ -150,7 +150,8 @@ class TestSignatureSecurityE2E:
         sig = _sign(body)
         tampered = body + b" extra"
         resp = await client.post(
-            "/api/banking/chat", content=tampered,
+            "/api/banking/chat",
+            content=tampered,
             headers={"content-type": "application/json", "x-signature": sig},
         )
         assert resp.status_code == 401
@@ -160,7 +161,8 @@ class TestSignatureSecurityE2E:
         body = _banking_body()
         sig = _sign(body, secret="wrong-secret")
         resp = await client.post(
-            "/api/banking/chat", content=body,
+            "/api/banking/chat",
+            content=body,
             headers={"content-type": "application/json", "x-signature": sig},
         )
         assert resp.status_code == 401
@@ -247,18 +249,21 @@ class TestCostTrackingE2E:
     def test_cost_tracker_provided_in_di(self, app):
         from lauren_ai import CostTracker
         from app.ai.ai_module import _cost_tracker
+
         assert _cost_tracker is not None
         assert isinstance(_cost_tracker, CostTracker)
 
     @pytest.mark.asyncio
     async def test_cost_report_returns_zero_before_any_calls(self):
         from app.ai.ai_module import _cost_tracker
+
         report = await _cost_tracker.report()
         assert report.total_estimate.total_usd >= 0.0
 
     @pytest.mark.asyncio
     async def test_manual_usage_accumulates_in_report(self):
         from lauren_ai import CostTracker, default_pricing_table, TokenUsage
+
         tracker = CostTracker(pricing=default_pricing_table())
         usage = TokenUsage(input_tokens=1000, output_tokens=500)
         tracker.record_usage("gpt-4o-mini", usage, conversation_id="test-conv")
@@ -269,6 +274,7 @@ class TestCostTrackingE2E:
     @pytest.mark.asyncio
     async def test_cost_session_context_manager(self):
         from lauren_ai import CostTracker, default_pricing_table, TokenUsage
+
         tracker = CostTracker(pricing=default_pricing_table())
         usage = TokenUsage(input_tokens=2000, output_tokens=1000)
         tracker.record_usage("gpt-4o", usage, conversation_id="session-test")
@@ -320,33 +326,40 @@ class TestBankingWiringE2E:
     def test_signal_bus_is_shared_singleton(self):
         from app.ai.signals import signal_bus
         from app.ai.ai_module import signal_bus as module_bus
+
         assert signal_bus is module_bus
 
     def test_crm_agent_has_agent_meta(self):
         from app.ai.crm_agent import BankingCRMAgent
+
         assert hasattr(BankingCRMAgent, "__lauren_ai_agent__")
 
     def test_transfer_agent_has_agent_meta(self):
         from app.ai.transfer_agent import BankingTransferAgent
+
         assert hasattr(BankingTransferAgent, "__lauren_ai_agent__")
 
     def test_crm_agent_has_use_tools_meta(self):
         from app.ai.crm_agent import BankingCRMAgent
         from lauren_ai._agents import USE_TOOLS_META
+
         assert hasattr(BankingCRMAgent, USE_TOOLS_META)
 
     def test_cost_tracker_is_wired(self):
         from app.ai.ai_module import _cost_tracker
         from lauren_ai import CostTracker
+
         assert isinstance(_cost_tracker, CostTracker)
 
     def test_trace_store_global_is_set(self):
         import main  # noqa: F401
         from lauren_ai import get_trace_store
+
         store = get_trace_store()
         assert store is not None
 
     def test_banking_delegation_tool_has_tool_meta(self):
         from app.ai.banking_delegation import DelegateToBankingTransfer
         from lauren_ai._tools import TOOL_META
+
         assert hasattr(DelegateToBankingTransfer, TOOL_META)

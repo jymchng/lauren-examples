@@ -39,11 +39,10 @@ class TestConversationMemoryPersistence:
         store = InMemoryConversationStore()
 
         from lauren_ai._agents._runner import AgentRunner
-        from lauren_ai._tools._registry import ToolRegistry
 
         runner = AgentRunner(
             transport=mock,
-            registry=ToolRegistry(),
+            tools={},
             config=cfg,
             conversation_store=store,
         )
@@ -79,7 +78,7 @@ class TestConversationMemoryPersistence:
 
         # The second run must include the first exchange plus the new message
         assert len(received_messages) == 3  # prior user, prior assistant, new user
-        assert received_messages[0]["content"] == "Hi there"       # prior user
+        assert received_messages[0]["content"] == "Hi there"  # prior user
         assert received_messages[1]["content"] == "Hello! How can I help?"  # prior assistant
         assert received_messages[2]["content"] == "What did I say?"  # new user
 
@@ -90,11 +89,10 @@ class TestConversationMemoryPersistence:
         store = InMemoryConversationStore()
 
         from lauren_ai._agents._runner import AgentRunner
-        from lauren_ai._tools._registry import ToolRegistry
 
         runner = AgentRunner(
             transport=mock,
-            registry=ToolRegistry(),
+            tools={},
             config=cfg,
             conversation_store=store,
         )
@@ -111,11 +109,10 @@ class TestConversationMemoryPersistence:
         store = InMemoryConversationStore()
 
         from lauren_ai._agents._runner import AgentRunner
-        from lauren_ai._tools._registry import ToolRegistry
 
         runner = AgentRunner(
             transport=mock,
-            registry=ToolRegistry(),
+            tools={},
             config=cfg,
             conversation_store=store,
         )
@@ -140,11 +137,10 @@ class TestConversationMemoryPersistence:
         store = InMemoryConversationStore()
 
         from lauren_ai._agents._runner import AgentRunner
-        from lauren_ai._tools._registry import ToolRegistry
 
         runner = AgentRunner(
             transport=mock,
-            registry=ToolRegistry(),
+            tools={},
             config=cfg,
             conversation_store=store,
         )

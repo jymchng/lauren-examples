@@ -61,8 +61,7 @@ async def _log_token_usage(event: ModelCallComplete) -> None:
     usage = event.usage
     if usage is not None:
         logger.info(
-            "ModelCallComplete model=%s input_tokens=%d output_tokens=%d "
-            "cost_usd=%.6f duration_ms=%.1f stop_reason=%s",
+            "ModelCallComplete model=%s input_tokens=%d output_tokens=%d cost_usd=%.6f duration_ms=%.1f stop_reason=%s",
             event.model,
             usage.input_tokens,
             usage.output_tokens,

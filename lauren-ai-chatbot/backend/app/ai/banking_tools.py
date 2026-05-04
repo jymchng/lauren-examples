@@ -93,10 +93,7 @@ class GetBalanceTool:
         account = self._db.get_account(user_id.lower())
         if not account:
             logger.debug("GetBalanceTool.run: account not found for user_id=%r", user_id)
-            return {
-                "error": f"Unknown account holder '{user_id}'. "
-                "Valid users are: alice, bob, charlie."
-            }
+            return {"error": f"Unknown account holder '{user_id}'. Valid users are: alice, bob, charlie."}
         logger.debug(
             "GetBalanceTool.run: found account=%s balance=%.2f",
             account.account_id,
@@ -155,10 +152,7 @@ class TransferFundsTool:
         if not from_acct:
             logger.debug("TransferFundsTool.run: security error - invalid account auth_uid=%r", auth_uid)
             return {
-                "error": (
-                    f"Security violation: session user '{auth_uid}' "
-                    "is not a valid SecureBank account holder."
-                )
+                "error": (f"Security violation: session user '{auth_uid}' is not a valid SecureBank account holder.")
             }
 
         result = self._db.transfer(
@@ -220,12 +214,7 @@ class GetTransactionHistoryTool:
         account = self._db.get_account(auth_uid)
         if not account:
             logger.debug("GetTransactionHistoryTool.run: security error - invalid account auth_uid=%r", auth_uid)
-            return {
-                "error": (
-                    f"Security violation: session user '{auth_uid}' "
-                    "is not a valid account holder."
-                )
-            }
+            return {"error": (f"Security violation: session user '{auth_uid}' is not a valid account holder.")}
 
         clamped = max(1, min(limit, 10))
         transactions = self._db.get_transactions(auth_uid, limit=clamped)

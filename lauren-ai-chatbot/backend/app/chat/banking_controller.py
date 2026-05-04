@@ -56,14 +56,14 @@ class BankingChatController:
         self,
         runner: AgentRunner,
         db: BankDatabase,
-        crm: BankingCRMAgent,
+        crm_agent: BankingCRMAgent,
     ) -> None:
         self._runner = runner
         self._db = db
-        self._crm = crm
+        self._crm_agent = crm_agent
 
     @post("/chat")
-    async def stream(self, body: Json[ChatRequest], request: Request) -> EventStream:
+    async def stream(self, body: Json[ChatRequest], exec_ctx: ExecutionContext) -> EventStream:
         """Run the BankingCRMAgent with verified identity context.
 
         Event types emitted:
@@ -74,17 +74,22 @@ class BankingChatController:
         # ── Identity: read from request.state, NOT from the raw body field ──
         # SignatureGuard already verified the HMAC and stored the user_id from
         # the signed payload.  We trust state, not the parsed body value.
+        request = exec_ctx.request
         user_id = (request.state.get("user_id") or body.user_id).lower()
 
         if user_id not in _VALID_USERS:
+
             async def _reject():
                 yield ServerSentEvent(event="error", data=f"Unknown user: {user_id}")
+
             return EventStream(_reject())
 
         account = self._db.get_account(user_id)
         if not account:
+
             async def _not_found():
                 yield ServerSentEvent(event="error", data="Account not found")
+
             return EventStream(_not_found())
 
         # Enrich request.state with the canonical account details so tools
@@ -101,17 +106,9 @@ class BankingChatController:
         # name.  Tools MUST NOT use this for authorisation; they read from
         # execution_context.request.state instead.
         auth_prefix = (
-            f"[BANKING_AUTH: user_id={account.user_id} | "
-            f"name={account.name} | "
-            f"account={account.account_id}]\n\n"
+            f"[BANKING_AUTH: user_id={account.user_id} | name={account.name} | account={account.account_id}]\n\n"
         )
         full_prompt = auth_prefix + raw_message
-
-        # Wrap the request in a real lauren ExecutionContext so the chain
-        #   AgentRunner → AgentContext → ToolContext.execution_context
-        # carries a proper ExecutionContext whose .request.state holds the
-        # guard-verified identity — not a plain dict that could drift.
-        exec_ctx = ExecutionContext(request=request)
 
         async def generate():
             # Pin the user_id in the ContextVar so signal handlers emitted
@@ -126,7 +123,7 @@ class BankingChatController:
             current_user_id.set(account.user_id)
             try:
                 response = await self._runner.run(
-                    self._crm,
+                    self._crm_agent,
                     full_prompt,
                     conversation_id=body.conversation_id,
                     execution_context=exec_ctx,

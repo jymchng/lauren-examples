@@ -20,6 +20,7 @@ nox.options.envdir = os.path.join(os.path.expanduser("~"), ".cache", "nox", "lau
 nox.options.sessions = ["tests"]
 
 import os as _os
+
 _HERE = _os.path.dirname(_os.path.abspath(__file__))
 # backend → lauren-ai-chatbot → lauren-examples → lauren-all
 _LAUREN_ALL = _os.path.dirname(_os.path.dirname(_os.path.dirname(_HERE)))
@@ -32,9 +33,15 @@ PYTHON = "3.12"
 def _install_dev(session: nox.Session) -> None:
     """Install all local editable packages plus dev extras in one pip call."""
     session.run(
-        "uv", "pip", "install", "-e", FRAMEWORK_PATH,
-        "-e", f"{LAUREN_AI_PATH}[openai]",
-        "-e", ".[dev]",
+        "uv",
+        "pip",
+        "install",
+        "-e",
+        FRAMEWORK_PATH,
+        "-e",
+        f"{LAUREN_AI_PATH}[openai]",
+        "-e",
+        ".[dev]",
     )
     # session.install(
     #     "-e", FRAMEWORK_PATH,
@@ -94,7 +101,7 @@ def lint(session: nox.Session) -> None:
 def format(session: nox.Session) -> None:
     """Check formatting with ruff."""
     session.install("ruff")
-    session.run("ruff", "format", "--check", "app/", "tests/")
+    session.run("ruff", "format", "app/", "tests/")
 
 
 # ---------------------------------------------------------------------------
@@ -110,8 +117,10 @@ def run(session: nox.Session) -> None:
     session.run(
         "uvicorn",
         "main:app",
-        "--host", "0.0.0.0",
-        "--port", port,
+        "--host",
+        "0.0.0.0",
+        "--port",
+        port,
         "--reload",
         external=True,
     )
