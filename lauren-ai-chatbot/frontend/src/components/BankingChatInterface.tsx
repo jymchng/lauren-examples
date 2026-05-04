@@ -16,6 +16,7 @@ import { SendHorizonal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MessageBubble, type Message } from "@/components/MessageBubble";
 import { StreamingMessage } from "@/components/StreamingMessage";
+import { generateId } from "@/lib/uuid";
 
 function parseSSEChunk(chunk: string): Array<{ event: string; data: string }> {
   const events: Array<{ event: string; data: string }> = [];
@@ -55,7 +56,7 @@ export function BankingChatInterface({ userId, userName, onComplete }: BankingCh
   const [streaming, setStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [conversationId] = useState(() => crypto.randomUUID());
+  const [conversationId] = useState(() => generateId());
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const prevUserIdRef = useRef(userId);
@@ -90,7 +91,7 @@ export function BankingChatInterface({ userId, userName, onComplete }: BankingCh
       if (inputRef.current) inputRef.current.style.height = "auto";
 
       const userMessage: Message = {
-        id: crypto.randomUUID(),
+        id: generateId(),
         role: "user",
         content: text,
       };
@@ -143,7 +144,7 @@ export function BankingChatInterface({ userId, userName, onComplete }: BankingCh
                 setStreamingContent(accumulated);
               } else if (event === "done") {
                 const assistantMessage: Message = {
-                  id: crypto.randomUUID(),
+                  id: generateId(),
                   role: "assistant",
                   content: accumulated,
                 };
@@ -161,7 +162,7 @@ export function BankingChatInterface({ userId, userName, onComplete }: BankingCh
         if (accumulated) {
           setMessages((prev) => [
             ...prev,
-            { id: crypto.randomUUID(), role: "assistant", content: accumulated },
+            { id: generateId(), role: "assistant", content: accumulated },
           ]);
         }
       } catch (err) {
@@ -169,7 +170,7 @@ export function BankingChatInterface({ userId, userName, onComplete }: BankingCh
         setMessages((prev) => [
           ...prev,
           {
-            id: crypto.randomUUID(),
+            id: generateId(),
             role: "assistant",
             content: `⚠️ Error: ${err instanceof Error ? err.message : String(err)}`,
           },

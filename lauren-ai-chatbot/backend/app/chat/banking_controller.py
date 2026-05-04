@@ -42,6 +42,7 @@ from app.ai.crm_agent import BankingCRMAgent
 from app.banking.bank_db import BankDatabase
 from app.chat.schemas import ChatRequest
 from app.crypto.signature_guard import SignatureGuard
+from app.ws.context import current_user_id
 
 _VALID_USERS = frozenset({"alice", "bob", "charlie"})
 
@@ -113,6 +114,16 @@ class BankingChatController:
         exec_ctx = ExecutionContext(request=request)
 
         async def generate():
+            # Pin the user_id in the ContextVar so signal handlers emitted
+            # during AgentRunner.run() can route events to the right WebSocket.
+            # NOTE: Do NOT use ContextVar.reset() here. The keep-alive path in
+            # _frame_event_stream wraps each __anext__() call in a separate
+            # asyncio.Task, so each iteration runs in its own context copy.
+            # Calling reset() in a later Task with a Token from an earlier Task
+            # raises ValueError("created in a different Context"). The context
+            # copy is automatically discarded when the Task completes, so no
+            # manual reset is needed.
+            current_user_id.set(account.user_id)
             try:
                 response = await self._runner.run(
                     self._crm,

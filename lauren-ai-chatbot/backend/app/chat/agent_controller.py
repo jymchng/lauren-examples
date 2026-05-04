@@ -1,80 +1,96 @@
-"""AgentController — agentic chat endpoint with tool use.
+"""AgentController — general-purpose chat endpoint proxied via /api/chat on the frontend.
 
-Architecture highlights
------------------------
-* ``@use_guards(SignatureGuard)`` — same HMAC-SHA256 guard as the regular chat
-  endpoint.
-* Resolves the ``ChatAgent`` from the DI container via the ``Agent[ChatAgent]``
-  extractor and the ``AgentRunner`` singleton, then runs the agent through the
-  agentic loop.
-* Returns an ``EventStream`` so the frontend receives the same SSE wire format
-  as the regular chat endpoint.
+Flow
+----
+1. Frontend's /api/chat route signs the payload and POSTs to /api/agent/.
+2. ``SignatureGuard`` verifies the HMAC signature and pins ``user_id`` from
+   the verified body to ``request.state``.
+3. Controller falls back to ``user_id = "alice"`` (the schema default) when no
+   user_id is provided, so the demo works without authentication setup.
+4. Runs ``BankingCRMAgent`` and streams the response as SSE.
 
-Layout::
-
-    POST /api/agent/  ──▶  SignatureGuard  ──▶  AgentController.stream
-                                                       │
-                                               AgentRunner.run(ChatAgent, ...)
-                                                       │
-                                               EventStream (SSE)  ──▶  browser
+This mirrors ``BankingChatController`` but lives at a simpler path for
+frontends that don't yet use the banking-specific multi-user flow.
 """
 
 from __future__ import annotations
 
-from lauren import (
-    EventStream,
-    Json,
-    ServerSentEvent,
-    controller,
-    post,
-    use_guards,
-)
+from lauren import EventStream, Json, Request, ServerSentEvent, controller, post, use_guards
+from lauren.types import ExecutionContext
 from lauren_ai import AgentRunner
 
-from app.ai.orchestrator_agent import OrchestratorAgent
+from app.ai.crm_agent import BankingCRMAgent
+from app.banking.bank_db import BankDatabase
 from app.chat.schemas import ChatRequest
 from app.crypto.signature_guard import SignatureGuard
+
+_VALID_USERS = frozenset({"alice", "bob", "charlie"})
 
 
 @use_guards(SignatureGuard)
 @controller("/api/agent")
 class AgentController:
-    """Streams agentic responses (with tool use and delegation) as Server-Sent Events."""
+    """General agent chat endpoint — streams BankingCRMAgent responses as SSE."""
 
-    def __init__(self, runner: AgentRunner, agent: OrchestratorAgent) -> None:
+    def __init__(
+        self,
+        runner: AgentRunner,
+        db: BankDatabase,
+        crm: BankingCRMAgent,
+    ) -> None:
         self._runner = runner
-        self._agent = agent
+        self._db = db
+        self._crm = crm
 
     @post("/")
-    async def stream(self, body: Json[ChatRequest]) -> EventStream:
-        """Run OrchestratorAgent and stream the response as Server-Sent Events.
-
-        The OrchestratorAgent routes requests to specialist sub-agents:
-        - Research / URL fetching  → ResearchAgent
-        - Code execution / maths   → CodeAssistantAgent
-        - General questions         → answered directly
+    async def stream(self, body: Json[ChatRequest], request: Request) -> EventStream:
+        """Run the BankingCRMAgent.
 
         Event types emitted:
-        - ``token``  — a text chunk from the model (``data`` = the token)
-        - ``done``   — signals end of stream (``data`` = ``""`` )
-        - ``error``  — something went wrong (``data`` = message)
+        - ``token``  — text chunk from the model
+        - ``done``   — end of stream
+        - ``error``  — error message
         """
-        # Extract the last user message as the prompt for the agent.
+        user_id = (request.state.get("user_id") or body.user_id).lower()
+
+        if user_id not in _VALID_USERS:
+            async def _reject():
+                yield ServerSentEvent(event="error", data=f"Unknown user: {user_id}")
+            return EventStream(_reject())
+
+        account = self._db.get_account(user_id)
+        if not account:
+            async def _not_found():
+                yield ServerSentEvent(event="error", data="Account not found")
+            return EventStream(_not_found())
+
+        request.state.user_id = account.user_id
+        request.state.user_name = account.name
+        request.state.account_id = account.account_id
+
         user_messages = [m for m in body.messages if m.role == "user"]
-        prompt = user_messages[-1].content if user_messages else ""
+        raw_message = user_messages[-1].content if user_messages else ""
+
+        auth_prefix = (
+            f"[BANKING_AUTH: user_id={account.user_id} | "
+            f"name={account.name} | "
+            f"account={account.account_id}]\n\n"
+        )
+        full_prompt = auth_prefix + raw_message
+        exec_ctx = ExecutionContext(request=request)
 
         async def generate():
             try:
                 response = await self._runner.run(
-                    self._agent,
-                    prompt,
+                    self._crm,
+                    full_prompt,
                     conversation_id=body.conversation_id,
+                    execution_context=exec_ctx,
                 )
-                content = response.content
-                if content:
-                    chunk_size = 50
-                    for i in range(0, len(content), chunk_size):
-                        yield ServerSentEvent(event="token", data=content[i : i + chunk_size])
+                content = response.content or ""
+                chunk_size = 40
+                for i in range(0, len(content), chunk_size):
+                    yield ServerSentEvent(event="token", data=content[i : i + chunk_size])
                 yield ServerSentEvent(event="done", data="")
             except Exception as exc:
                 yield ServerSentEvent(event="error", data=str(exc))

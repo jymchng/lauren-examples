@@ -39,9 +39,9 @@ class BankingController:
         """Return a single account with recent transactions."""
         account = self._db.get_account(user_id)
         if not account:
-            from lauren.exceptions import NotFoundError
+            from lauren.exceptions import RouteNotFoundError
 
-            raise NotFoundError(f"Account not found: {user_id}")
+            raise RouteNotFoundError(f"Account not found: {user_id}")
 
         transactions = self._db.get_transactions(user_id, limit=5)
         return {

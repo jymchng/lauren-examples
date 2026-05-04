@@ -78,8 +78,18 @@ class GetBalanceTool:
     def __init__(self, db: BankDatabase) -> None:
         self._db = db
 
-    async def run(self, user_id: str) -> dict:
+    async def run(self, user_id: str, ctx: ToolContext) -> dict:
         logger.debug("GetBalanceTool.run: user_id=%r", user_id)
+        auth_uid = _auth_uid(ctx)
+        logger.debug("GetBalanceTool.run: auth_uid=%r", auth_uid)
+        if not auth_uid or auth_uid != user_id:
+            logger.debug("GetBalanceTool.run: security error - no auth_uid in execution context")
+            return {
+                "error": (
+                    "Security error: no authenticated user found in "
+                    "ExecutionContext.request.state.  Cannot authorise a transfer."
+                )
+            }
         account = self._db.get_account(user_id.lower())
         if not account:
             logger.debug("GetBalanceTool.run: account not found for user_id=%r", user_id)

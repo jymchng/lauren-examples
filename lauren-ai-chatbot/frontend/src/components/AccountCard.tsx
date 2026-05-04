@@ -30,6 +30,8 @@ interface AccountDetail {
 
 interface AccountCardProps {
   userId: string;
+  /** Live balance from WebSocket events; overrides the fetched balance when set. */
+  liveBalance?: number;
 }
 
 function formatBalance(amount: number): string {
@@ -60,7 +62,7 @@ function initials(name: string): string {
     .slice(0, 2);
 }
 
-export function AccountCard({ userId }: AccountCardProps) {
+export function AccountCard({ userId, liveBalance }: AccountCardProps) {
   const [account, setAccount] = useState<AccountDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -130,7 +132,7 @@ export function AccountCard({ userId }: AccountCardProps) {
         </div>
         <p className="text-xs text-white/70 mb-0.5">Available Balance</p>
         <p className="text-2xl font-bold tabular-nums tracking-tight">
-          {formatBalance(account.balance)}
+          {formatBalance(liveBalance ?? account.balance)}
         </p>
       </div>
 

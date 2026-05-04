@@ -5,26 +5,37 @@
  *
  * Layout
  * ------
- * Left sidebar (fixed ~288px):
- *   • App branding
- *   • "Login as" user selector (Alice / Bob / Charlie)
- *   • Selected user's account card (balance + recent transactions)
+ * Desktop (lg+):
+ *   Left sidebar (fixed 288px) — user selector, account card, activity feed, info panel
+ *   Right main area (flex-1)  — BankingChatInterface
  *
- * Right main area (flex-1):
- *   • BankingChatInterface — scoped per-user conversation
- *
- * Security model (displayed as pills):
- *   • user_id is part of the HMAC-signed payload — browser can't tamper with it
- *   • [BANKING_AUTH:...] tag is injected server-side by BankingChatController
- *   • Transfer Agent enforces authenticated_user at tool level
+ * Mobile (< lg):
+ *   Compact user strip (horizontal pills + live balance) pinned below the header
+ *   Full-height chat beneath it — no sidebar clutter
  */
 
-import { useEffect, useState } from "react";
-import { Shield, Lock, Sparkles } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Shield, Lock, Sparkles, Zap } from "lucide-react";
 import { UserSelector, type AccountSummary } from "@/components/UserSelector";
 import { AccountCard } from "@/components/AccountCard";
 import { BankingChatInterface } from "@/components/BankingChatInterface";
+import { DemoInfoPanel } from "@/components/DemoInfoPanel";
+import { LiveActivityFeed, type ActivityEntry } from "@/components/LiveActivityFeed";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useWebSocket, type WsEvent } from "@/hooks/useWebSocket";
+import { cn } from "@/lib/utils";
+
+function initials(name: string): string {
+  return name.split(" ").map((p) => p[0]).join("").toUpperCase().slice(0, 2);
+}
+
+function formatBalance(amount: number): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+  }).format(amount);
+}
 
 export default function Home() {
   const [accounts, setAccounts] = useState<AccountSummary[]>([]);
@@ -32,12 +43,28 @@ export default function Home() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [accountRefreshKey, setAccountRefreshKey] = useState(0);
 
-  // Auto-select Alice once on mount
+  const [liveBalances, setLiveBalances] = useState<Record<string, number>>({});
+  const [activityEntries, setActivityEntries] = useState<ActivityEntry[]>([]);
+  const activityCounterRef = useRef(0);
+
+  const handleWsEvent = useCallback((event: WsEvent) => {
+    if (event.type === "balance_changed") {
+      const balances = event.balances as Record<string, number>;
+      setLiveBalances((prev) => ({ ...prev, ...balances }));
+    } else {
+      activityCounterRef.current += 1;
+      setActivityEntries((prev) =>
+        [...prev, { id: activityCounterRef.current, event, timestamp: Date.now() }].slice(-50)
+      );
+    }
+  }, []);
+
+  const { connected } = useWebSocket({ userId: selectedUserId, onEvent: handleWsEvent });
+
   useEffect(() => {
     setSelectedUserId("alice");
   }, []);
 
-  // Re-fetch the accounts list on mount and after every transfer
   useEffect(() => {
     fetch(`/api/banking/accounts?_t=${Date.now()}`)
       .then((r) => r.json())
@@ -55,18 +82,19 @@ export default function Home() {
 
   return (
     <div className="h-screen bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-950 dark:to-blue-950 flex flex-col overflow-hidden">
+
       {/* ── Top header bar ─────────────────────────────────────────── */}
       <header className="flex-shrink-0 border-b border-border bg-card/80 backdrop-blur-sm px-4 py-3">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <Shield className="h-5 w-5 text-primary" />
-            <span className="font-bold text-base tracking-tight">SecureBank AI</span>
-            <span className="hidden sm:inline text-xs text-muted-foreground ml-1">
-              — Multi-agent banking demo
-            </span>
+            <div>
+              <span className="font-bold text-base tracking-tight">SecureBank AI</span>
+              <span className="hidden sm:inline text-xs text-muted-foreground ml-2">
+                Multi-agent banking demo built with Lauren AI
+              </span>
+            </div>
           </div>
-
-          {/* Security feature pills */}
           <div className="hidden md:flex items-center gap-2">
             <span className="inline-flex items-center gap-1 text-[10px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rounded-full px-2.5 py-1">
               <Lock className="h-2.5 w-2.5" />
@@ -80,15 +108,66 @@ export default function Home() {
               <Sparkles className="h-2.5 w-2.5" />
               CRM + Transfer Agents
             </span>
+            <span className="inline-flex items-center gap-1 text-[10px] bg-amber-500/10 text-amber-700 dark:text-amber-400 rounded-full px-2.5 py-1">
+              <Zap className="h-2.5 w-2.5" />
+              Live WebSocket Events
+            </span>
           </div>
         </div>
       </header>
 
-      {/* ── Main body ───────────────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden max-w-7xl w-full mx-auto p-4 gap-4">
+      {/* ── Mobile-only: compact user + balance strip ───────────────── */}
+      <div className="lg:hidden flex-shrink-0 border-b border-border bg-card/60 backdrop-blur-sm px-3 py-2">
+        {loadError ? (
+          <p className="text-xs text-destructive px-1">{loadError}</p>
+        ) : accounts.length === 0 ? (
+          <div className="flex gap-2">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-8 w-24 rounded-full bg-muted animate-pulse" />
+            ))}
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 overflow-x-auto pb-0.5">
+            {accounts.map((account) => {
+              const selected = account.user_id === selectedUserId;
+              const balance = liveBalances[account.user_id] ?? account.balance;
+              return (
+                <button
+                  key={account.user_id}
+                  onClick={() => setSelectedUserId(account.user_id)}
+                  className={cn(
+                    "flex-shrink-0 flex items-center gap-2 rounded-full px-3 py-1.5 border transition-all text-xs font-medium",
+                    selected
+                      ? "bg-primary/10 border-primary/40 shadow-sm"
+                      : "bg-card border-border hover:bg-accent/50"
+                  )}
+                >
+                  <span
+                    className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0"
+                    style={{ backgroundColor: account.avatar_color }}
+                  >
+                    {initials(account.name)}
+                  </span>
+                  <span className={selected ? "text-primary" : "text-foreground"}>
+                    {account.name.split(" ")[0]}
+                  </span>
+                  {selected && (
+                    <span className="font-bold tabular-nums text-primary">
+                      {formatBalance(balance)}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
-        {/* Left sidebar */}
-        <aside className="flex-shrink-0 w-full lg:w-72 flex flex-col gap-4">
+      {/* ── Main body ───────────────────────────────────────────────── */}
+      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden max-w-7xl w-full mx-auto p-4 gap-4 min-h-0">
+
+        {/* Left sidebar — desktop only */}
+        <aside className="hidden lg:flex flex-shrink-0 w-72 flex-col gap-4 overflow-y-auto">
           {/* User selector */}
           <Card className="shadow-sm">
             <CardHeader className="pb-2 pt-4 px-4">
@@ -102,10 +181,7 @@ export default function Home() {
               ) : accounts.length === 0 ? (
                 <div className="space-y-2">
                   {[1, 2, 3].map((i) => (
-                    <div
-                      key={i}
-                      className="h-16 rounded-xl bg-muted animate-pulse"
-                    />
+                    <div key={i} className="h-16 rounded-xl bg-muted animate-pulse" />
                   ))}
                 </div>
               ) : (
@@ -118,46 +194,35 @@ export default function Home() {
             </CardContent>
           </Card>
 
-          {/* Account detail */}
+          {/* Account detail card */}
           {selectedUserId && (
             <Card className="shadow-sm flex-shrink-0">
               <CardContent className="p-4">
-                <AccountCard key={`${selectedUserId}-${accountRefreshKey}`} userId={selectedUserId} />
+                <AccountCard
+                  key={`${selectedUserId}-${accountRefreshKey}`}
+                  userId={selectedUserId}
+                  liveBalance={liveBalances[selectedUserId]}
+                />
               </CardContent>
             </Card>
           )}
 
-          {/* Architecture notes (desktop only) */}
-          <div className="hidden lg:block space-y-2 text-xs text-muted-foreground">
-            <div className="rounded-lg p-3 border border-border bg-card">
-              <p className="font-semibold text-foreground mb-1">Identity Spoofing Test</p>
-              <p>
-                Login as <strong>Charlie</strong> and ask the agent to transfer funds
-                as <strong>Bob</strong>. The CRM agent will refuse — the signed
-                payload locks the identity server-side.
-              </p>
-            </div>
-            <div className="rounded-lg p-3 border border-border bg-card">
-              <p className="font-semibold text-foreground mb-1">Agent Delegation</p>
-              <p>
-                The CRM Agent delegates fund transfers to a back-office
-                Transfer Agent, always forwarding the verified
-                <code className="font-mono text-[10px] mx-0.5">authenticated_user</code>
-                so the Transfer Agent can't be bypassed either.
-              </p>
-            </div>
-          </div>
+          {/* Live activity feed */}
+          {selectedUserId && (
+            <LiveActivityFeed entries={activityEntries} connected={connected} />
+          )}
+
+          {/* Demo info panel */}
+          <DemoInfoPanel />
         </aside>
 
-        {/* Right panel — chat */}
+        {/* Right panel — chat (full height on both mobile and desktop) */}
         <main className="flex-1 flex flex-col min-h-0">
           <Card className="flex-1 shadow-sm flex flex-col min-h-0 overflow-hidden">
             <CardHeader className="flex-shrink-0 pb-0 px-4 pt-4 border-b border-border">
               <div className="flex items-center justify-between pb-3">
                 <div>
-                  <CardTitle className="text-base">
-                    Banking Assistant
-                  </CardTitle>
+                  <CardTitle className="text-base">Banking Assistant</CardTitle>
                   {selectedAccount && (
                     <p className="text-xs text-muted-foreground mt-0.5">
                       Logged in as{" "}
@@ -175,12 +240,7 @@ export default function Home() {
                     className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
                     style={{ backgroundColor: selectedAccount.avatar_color }}
                   >
-                    {selectedAccount.name
-                      .split(" ")
-                      .map((p) => p[0])
-                      .join("")
-                      .toUpperCase()
-                      .slice(0, 2)}
+                    {initials(selectedAccount.name)}
                   </div>
                 )}
               </div>
@@ -188,7 +248,7 @@ export default function Home() {
 
             <CardContent className="flex-1 p-0 min-h-0 overflow-hidden">
               {selectedUserId && selectedAccount ? (
-                <div className="h-full" style={{ minHeight: "400px" }}>
+                <div className="h-full" style={{ minHeight: "300px" }}>
                   <BankingChatInterface
                     key={selectedUserId}
                     userId={selectedUserId}
@@ -197,8 +257,8 @@ export default function Home() {
                   />
                 </div>
               ) : (
-                <div className="flex items-center justify-center h-full min-h-[300px] text-muted-foreground text-sm">
-                  Select a user on the left to start banking
+                <div className="flex items-center justify-center h-full min-h-[200px] text-muted-foreground text-sm">
+                  Select a user above to start banking
                 </div>
               )}
             </CardContent>

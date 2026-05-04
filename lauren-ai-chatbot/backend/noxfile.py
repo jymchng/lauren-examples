@@ -59,7 +59,7 @@ def tests(session: nox.Session) -> None:
         "--tb=short",
         f"--cov=app",
         "--cov-report=term-missing",
-        "--cov-fail-under=70",
+        "--cov-fail-under=90",
         *session.posargs,
     )
 

@@ -7,10 +7,13 @@ cannot corrupt balances.
 
 from __future__ import annotations
 
+import asyncio
 import threading
 import uuid
+from collections.abc import Callable, Awaitable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from typing import Any
 
 from lauren import injectable, Scope
 
@@ -45,6 +48,7 @@ class BankDatabase:
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
+        self._transfer_listeners: list[Callable[..., Awaitable[Any]]] = []
         self._accounts: dict[str, BankAccount] = {
             "alice": BankAccount(
                 user_id="alice",
@@ -69,6 +73,19 @@ class BankDatabase:
             ),
         }
         self._transactions: list[Transaction] = []
+
+    # ── Listener registration ─────────────────────────────────────────────────
+
+    def add_transfer_listener(
+        self, fn: Callable[..., Awaitable[Any]]
+    ) -> None:
+        """Register an async callback invoked after every successful transfer.
+
+        The callback signature is ``fn(tx: Transaction, from_balance: float,
+        to_balance: float)``.  It is scheduled as a new asyncio task so it
+        does not block the transfer itself.
+        """
+        self._transfer_listeners.append(fn)
 
     # ── Queries ──────────────────────────────────────────────────────────────
 
@@ -130,5 +147,17 @@ class BankDatabase:
                 to_name=to_acct.name,
             )
             self._transactions.append(tx)
-            return tx
+            from_balance = from_acct.balance
+            to_balance = to_acct.balance
+
+        # Fire transfer listeners outside the lock (they are async)
+        if self._transfer_listeners:
+            try:
+                loop = asyncio.get_running_loop()
+                for cb in self._transfer_listeners:
+                    loop.create_task(cb(tx, from_balance, to_balance))
+            except RuntimeError:
+                pass  # No running event loop (e.g. during unit tests)
+
+        return tx
 
