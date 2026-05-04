@@ -5,11 +5,15 @@ from __future__ import annotations
 from lauren import module
 
 from app.banking.banking_module import BankingModule
-from app.chat.chat_module import ChatModule
 from app.health.health_module import HealthModule
 from app.ws.ws_module import WsModule
 
 
-@module(imports=[BankingModule, ChatModule, HealthModule, WsModule])
+from app.ai.ai_module import AIModule
+from app.banking.banking_module import BankingModule
+from app.metrics.metrics_module import MetricsModule
+
+
+@module(imports=[BankingModule, HealthModule, WsModule, AIModule, MetricsModule])
 class AppModule:
     pass

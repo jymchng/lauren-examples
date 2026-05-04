@@ -63,6 +63,8 @@
 @layer base {
   * {
     @apply border-border;
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
   }
   body {
     @apply bg-background text-foreground;
@@ -70,3 +72,23 @@
       Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
   }
 }
+
+/* ── Custom scrollbars (Webkit) ────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.4);
+}
+
+/* ── Font size scaling ─────────────────────────────────────────────── */
+html[data-font-size="sm"] { font-size: 14px; }
+html[data-font-size="lg"] { font-size: 18px; }

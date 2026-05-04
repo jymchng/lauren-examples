@@ -105,6 +105,18 @@ def format(session: nox.Session) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Build
+# ---------------------------------------------------------------------------
+
+
+@nox.session(python=PYTHON)
+def build(session: nox.Session) -> None:
+    """Build a source distribution and wheel into dist/."""
+    session.install("build")
+    session.run("python", "-m", "build", "--outdir", "dist/")
+
+
+# ---------------------------------------------------------------------------
 # Dev server
 # ---------------------------------------------------------------------------
 

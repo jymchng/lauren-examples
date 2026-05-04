@@ -40,7 +40,7 @@ from lauren_ai import AgentRunner
 
 from app.ai.crm_agent import BankingCRMAgent
 from app.banking.bank_db import BankDatabase
-from app.chat.schemas import ChatRequest
+from app.ai.chat_schemas import ChatRequest
 from app.crypto.signature_guard import SignatureGuard
 from app.ws.context import current_user_id
 

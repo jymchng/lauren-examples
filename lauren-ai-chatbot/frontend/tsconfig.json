@@ -38,6 +38,7 @@
     ".next-dev-3505249/types/**/*.ts",
     ".next-dev-3557769/types/**/*.ts",
     ".next-dev-3690033/types/**/*.ts",
+    ".next-dev-3722695/types/**/*.ts",
     ".next-dev/types/**/*.ts",
     ".next-fresh/types/**/*.ts",
     ".next-nofont/types/**/*.ts",
@@ -46,7 +47,7 @@
     ".next-ws/types/**/*.ts",
     ".next/types/**/*.ts",
     "next-env.d.ts",
-    ".next-dev-3722695/types/**/*.ts"
+    ".next-dev-3760918/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"

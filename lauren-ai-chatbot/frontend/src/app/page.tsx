@@ -10,17 +10,19 @@
  *   Right main area (flex-1)  — BankingChatInterface
  *
  * Mobile (< lg):
- *   Compact user strip (horizontal pills + live balance) pinned below the header
- *   Full-height chat beneath it — no sidebar clutter
+ *   Header with hamburger → slide-in sidebar drawer
+ *   Compact user pill strip pinned below header
+ *   Full-height chat beneath it
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Shield, Lock, Sparkles, Zap } from "lucide-react";
+import { Shield, Lock, Sparkles, Zap, Menu, X } from "lucide-react";
 import { UserSelector, type AccountSummary } from "@/components/UserSelector";
 import { AccountCard } from "@/components/AccountCard";
 import { BankingChatInterface } from "@/components/BankingChatInterface";
 import { DemoInfoPanel } from "@/components/DemoInfoPanel";
 import { LiveActivityFeed, type ActivityEntry } from "@/components/LiveActivityFeed";
+import { SettingsPanel, type Theme, type FontSize } from "@/components/SettingsPanel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useWebSocket, type WsEvent } from "@/hooks/useWebSocket";
 import { cn } from "@/lib/utils";
@@ -46,6 +48,62 @@ export default function Home() {
   const [liveBalances, setLiveBalances] = useState<Record<string, number>>({});
   const [activityEntries, setActivityEntries] = useState<ActivityEntry[]>([]);
   const activityCounterRef = useRef(0);
+
+  // ── UI state ────────────────────────────────────────────────────────
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [theme, setTheme] = useState<Theme>("system");
+  const [fontSize, setFontSize] = useState<FontSize>("md");
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
+  // Load preferences from localStorage on mount
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("theme") as Theme | null;
+    if (savedTheme) setTheme(savedTheme);
+    const savedFontSize = localStorage.getItem("fontSize") as FontSize | null;
+    if (savedFontSize) setFontSize(savedFontSize);
+  }, []);
+
+  // Apply theme to <html>
+  useEffect(() => {
+    const root = document.documentElement;
+    const applyDark = (dark: boolean) => root.classList.toggle("dark", dark);
+    if (theme === "system") {
+      const mq = window.matchMedia("(prefers-color-scheme: dark)");
+      applyDark(mq.matches);
+      const handler = (e: MediaQueryListEvent) => applyDark(e.matches);
+      mq.addEventListener("change", handler);
+      return () => mq.removeEventListener("change", handler);
+    } else {
+      applyDark(theme === "dark");
+    }
+  }, [theme]);
+
+  // Apply font size to <html>
+  useEffect(() => {
+    document.documentElement.setAttribute("data-font-size", fontSize);
+  }, [fontSize]);
+
+  // Close mobile sidebar on Escape or viewport ≥ lg
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setSidebarOpen(false); };
+    const onResize = () => { if (window.innerWidth >= 1024) setSidebarOpen(false); };
+    document.addEventListener("keydown", onKey);
+    window.addEventListener("resize", onResize);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("resize", onResize);
+    };
+  }, []);
+
+  const handleThemeChange = (t: Theme) => {
+    setTheme(t);
+    localStorage.setItem("theme", t);
+  };
+
+  const handleFontSizeChange = (f: FontSize) => {
+    setFontSize(f);
+    localStorage.setItem("fontSize", f);
+  };
 
   const handleWsEvent = useCallback((event: WsEvent) => {
     if (event.type === "balance_changed") {
@@ -80,13 +138,105 @@ export default function Home() {
 
   const selectedAccount = accounts.find((a) => a.user_id === selectedUserId);
 
+  // ── Sidebar content (shared by desktop aside and mobile drawer) ──────
+  const sidebarContent = (
+    <>
+      {/* User selector */}
+      <Card className="shadow-sm">
+        <CardHeader className="pb-2 pt-4 px-4">
+          <CardTitle className="text-sm text-muted-foreground font-medium">
+            Login as
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="px-4 pb-4">
+          {loadError ? (
+            <p className="text-xs text-destructive">{loadError}</p>
+          ) : accounts.length === 0 ? (
+            <div className="space-y-2">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-16 rounded-xl bg-muted animate-pulse" />
+              ))}
+            </div>
+          ) : (
+            <UserSelector
+              accounts={accounts}
+              selectedUserId={selectedUserId}
+              onSelect={(id) => { setSelectedUserId(id); setSidebarOpen(false); }}
+            />
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Account detail card */}
+      {selectedUserId && (
+        <Card className="shadow-sm flex-shrink-0">
+          <CardContent className="p-4">
+            <AccountCard
+              key={`${selectedUserId}-${accountRefreshKey}`}
+              userId={selectedUserId}
+              liveBalance={liveBalances[selectedUserId]}
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Live activity feed */}
+      {selectedUserId && (
+        <LiveActivityFeed entries={activityEntries} connected={connected} />
+      )}
+
+      {/* Demo info panel */}
+      <DemoInfoPanel />
+    </>
+  );
+
   return (
     <div className="h-screen bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-950 dark:to-blue-950 flex flex-col overflow-hidden">
+
+      {/* ── Mobile sidebar drawer ────────────────────────────────────── */}
+      <div className={cn("lg:hidden fixed inset-0 z-50", sidebarOpen ? "pointer-events-auto" : "pointer-events-none")}>
+        {/* Backdrop */}
+        <div
+          className={cn(
+            "absolute inset-0 bg-black/50 transition-opacity duration-300",
+            sidebarOpen ? "opacity-100" : "opacity-0",
+          )}
+          onClick={() => setSidebarOpen(false)}
+        />
+        {/* Drawer panel */}
+        <div className={cn(
+          "absolute left-0 top-0 h-full w-72 bg-background border-r border-border flex flex-col gap-4 p-4 overflow-y-auto transition-transform duration-300",
+          sidebarOpen ? "translate-x-0" : "-translate-x-full",
+        )}>
+          <div className="flex items-center justify-between flex-shrink-0">
+            <div className="flex items-center gap-2">
+              <Shield className="h-4 w-4 text-primary" />
+              <span className="font-bold text-sm">SecureBank AI</span>
+            </div>
+            <button
+              onClick={() => setSidebarOpen(false)}
+              aria-label="Close sidebar"
+              className="h-7 w-7 flex items-center justify-center rounded-md border border-border text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          {sidebarContent}
+        </div>
+      </div>
 
       {/* ── Top header bar ─────────────────────────────────────────── */}
       <header className="flex-shrink-0 border-b border-border bg-card/80 backdrop-blur-sm px-4 py-3">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
           <div className="flex items-center gap-2">
+            {/* Hamburger — mobile only */}
+            <button
+              className="lg:hidden h-8 w-8 flex items-center justify-center rounded-md border border-border text-muted-foreground hover:bg-accent hover:text-foreground transition-colors mr-1"
+              onClick={() => setSidebarOpen(true)}
+              aria-label="Open sidebar"
+            >
+              <Menu className="h-4 w-4" />
+            </button>
             <Shield className="h-5 w-5 text-primary" />
             <div>
               <span className="font-bold text-base tracking-tight">SecureBank AI</span>
@@ -95,23 +245,34 @@ export default function Home() {
               </span>
             </div>
           </div>
-          <div className="hidden md:flex items-center gap-2">
-            <span className="inline-flex items-center gap-1 text-[10px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rounded-full px-2.5 py-1">
-              <Lock className="h-2.5 w-2.5" />
-              HMAC-Signed Payloads
-            </span>
-            <span className="inline-flex items-center gap-1 text-[10px] bg-primary/10 text-primary rounded-full px-2.5 py-1">
-              <Shield className="h-2.5 w-2.5" />
-              Identity Guards
-            </span>
-            <span className="inline-flex items-center gap-1 text-[10px] bg-violet-500/10 text-violet-700 dark:text-violet-400 rounded-full px-2.5 py-1">
-              <Sparkles className="h-2.5 w-2.5" />
-              CRM + Transfer Agents
-            </span>
-            <span className="inline-flex items-center gap-1 text-[10px] bg-amber-500/10 text-amber-700 dark:text-amber-400 rounded-full px-2.5 py-1">
-              <Zap className="h-2.5 w-2.5" />
-              Live WebSocket Events
-            </span>
+          <div className="flex items-center gap-2">
+            <div className="hidden md:flex items-center gap-2">
+              <span className="inline-flex items-center gap-1 text-[10px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rounded-full px-2.5 py-1">
+                <Lock className="h-2.5 w-2.5" />
+                HMAC-Signed Payloads
+              </span>
+              <span className="inline-flex items-center gap-1 text-[10px] bg-primary/10 text-primary rounded-full px-2.5 py-1">
+                <Shield className="h-2.5 w-2.5" />
+                Identity Guards
+              </span>
+              <span className="inline-flex items-center gap-1 text-[10px] bg-violet-500/10 text-violet-700 dark:text-violet-400 rounded-full px-2.5 py-1">
+                <Sparkles className="h-2.5 w-2.5" />
+                CRM + Transfer Agents
+              </span>
+              <span className="inline-flex items-center gap-1 text-[10px] bg-amber-500/10 text-amber-700 dark:text-amber-400 rounded-full px-2.5 py-1">
+                <Zap className="h-2.5 w-2.5" />
+                Live WebSocket Events
+              </span>
+            </div>
+            {/* Settings */}
+            <SettingsPanel
+              theme={theme}
+              fontSize={fontSize}
+              onThemeChange={handleThemeChange}
+              onFontSizeChange={handleFontSizeChange}
+              open={settingsOpen}
+              onOpenChange={setSettingsOpen}
+            />
           </div>
         </div>
       </header>
@@ -168,52 +329,7 @@ export default function Home() {
 
         {/* Left sidebar — desktop only */}
         <aside className="hidden lg:flex flex-shrink-0 w-72 flex-col gap-4 overflow-y-auto">
-          {/* User selector */}
-          <Card className="shadow-sm">
-            <CardHeader className="pb-2 pt-4 px-4">
-              <CardTitle className="text-sm text-muted-foreground font-medium">
-                Login as
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="px-4 pb-4">
-              {loadError ? (
-                <p className="text-xs text-destructive">{loadError}</p>
-              ) : accounts.length === 0 ? (
-                <div className="space-y-2">
-                  {[1, 2, 3].map((i) => (
-                    <div key={i} className="h-16 rounded-xl bg-muted animate-pulse" />
-                  ))}
-                </div>
-              ) : (
-                <UserSelector
-                  accounts={accounts}
-                  selectedUserId={selectedUserId}
-                  onSelect={setSelectedUserId}
-                />
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Account detail card */}
-          {selectedUserId && (
-            <Card className="shadow-sm flex-shrink-0">
-              <CardContent className="p-4">
-                <AccountCard
-                  key={`${selectedUserId}-${accountRefreshKey}`}
-                  userId={selectedUserId}
-                  liveBalance={liveBalances[selectedUserId]}
-                />
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Live activity feed */}
-          {selectedUserId && (
-            <LiveActivityFeed entries={activityEntries} connected={connected} />
-          )}
-
-          {/* Demo info panel */}
-          <DemoInfoPanel />
+          {sidebarContent}
         </aside>
 
         {/* Right panel — chat (full height on both mobile and desktop) */}

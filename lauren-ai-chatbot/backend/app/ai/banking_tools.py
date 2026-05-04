@@ -1,6 +1,3 @@
-# NOTE: Do NOT add `from __future__ import annotations` to this file.
-# The @tool() decorator uses inspect.signature() at decoration time to build
-# the JSON schema, and PEP 563 lazy evaluation breaks that introspection.
 """Banking tools for the SecureBank Transfer Agent.
 
 All tools are class-based so the BankDatabase singleton is injected via DI.
@@ -36,6 +33,8 @@ belong to a valid account the tool returns a security error immediately.
 ``GetBalanceTool`` is intentionally unauthenticated — balance lookups are
 read-only and needed to check a transfer recipient's account.
 """
+
+from __future__ import annotations
 
 import logging
 
@@ -79,33 +78,32 @@ class GetBalanceTool:
         self._db = db
 
     async def run(self, user_id: str, ctx: ToolContext) -> dict:
-        logger.debug("GetBalanceTool.run: user_id=%r", user_id)
         auth_uid = _auth_uid(ctx)
-        logger.debug("GetBalanceTool.run: auth_uid=%r", auth_uid)
-        if not auth_uid or auth_uid != user_id:
-            logger.debug("GetBalanceTool.run: security error - no auth_uid in execution context")
+        if not auth_uid:
             return {
                 "error": (
                     "Security error: no authenticated user found in "
                     "ExecutionContext.request.state.  Cannot authorise a transfer."
                 )
             }
+        if auth_uid != user_id:
+            return {
+                "error": (
+                    f"Security violation: authenticated user '{auth_uid}' cannot "
+                    f"access another user's balance ('{user_id}')."
+                )
+            }
         account = self._db.get_account(user_id.lower())
         if not account:
-            logger.debug("GetBalanceTool.run: account not found for user_id=%r", user_id)
             return {"error": f"Unknown account holder '{user_id}'. Valid users are: alice, bob, charlie."}
-        logger.debug(
-            "GetBalanceTool.run: found account=%s balance=%.2f",
-            account.account_id,
-            account.balance,
-        )
-        return {
+        response = {
             "user_id": account.user_id,
             "name": account.name,
             "account_id": account.account_id,
             "balance_usd": account.balance,
             "balance_formatted": f"${account.balance:,.2f}",
         }
+        return response
 
 
 @tool()

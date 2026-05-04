@@ -48,7 +48,9 @@ from app.ai.banking_tools import GetBalanceTool, GetTransactionHistoryTool, Tran
 from app.ai.crm_agent import BankingCRMAgent
 from app.ai.signals import signal_bus
 from app.ai.transfer_agent import BankingTransferAgent
+from app.ai.chat_banking_controller import BankingChatController
 from app.banking.banking_module import BankingModule
+from app.crypto.crypto_module import CryptoModule
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +112,7 @@ _cost_tracker_provider = use_value(provide=CostTracker, value=_cost_tracker)
 
 
 @module(
-    imports=[LLMProvider, _CRMAgentModule, _TransferAgentModule, BankingModule],
+    imports=[LLMProvider, _CRMAgentModule, _TransferAgentModule, BankingModule, CryptoModule],
     providers=[
         _cost_tracker_provider,
     ],
@@ -119,6 +121,9 @@ _cost_tracker_provider = use_value(provide=CostTracker, value=_cost_tracker)
         AgentRunner,
         BankingCRMAgent,
         CostTracker,
+    ],
+    controllers=[
+        BankingChatController,
     ],
 )
 class AIModule:

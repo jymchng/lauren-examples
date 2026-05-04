@@ -14,7 +14,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body>{children}</body>
+      <body>
+        {/* Blocking script: applies theme + font-size from localStorage before hydration (prevents FOUC) */}
+        <script dangerouslySetInnerHTML={{ __html: `(function(){try{var t=localStorage.getItem('theme')||'system';if(t==='dark'||(t==='system'&&window.matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.classList.add('dark')}var f=localStorage.getItem('fontSize');if(f)document.documentElement.setAttribute('data-font-size',f)}catch(e){}})();` }} />
+        {children}
+      </body>
     </html>
   );
 }

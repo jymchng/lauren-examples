@@ -3,7 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from app.chat.schemas import ChatRequest, Message
+from app.ai.chat_schemas import ChatRequest, Message
 
 
 class TestMessage:
