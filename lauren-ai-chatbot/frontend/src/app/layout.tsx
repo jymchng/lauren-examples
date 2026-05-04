@@ -4,7 +4,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "SecureBank AI — Banking Demo",
   description:
-    "Multi-agent banking demo: CRM agent, Transfer agent, identity verification, and security safeguards built with Lauren AI.",
+    "Multi-agent banking demo: CRM agent, Transfer agent, identity verification, and security safeguards.",
 };
 
 export default function RootLayout({

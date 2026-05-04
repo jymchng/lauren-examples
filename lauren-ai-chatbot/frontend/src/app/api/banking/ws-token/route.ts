@@ -3,7 +3,7 @@
  *
  * The browser calls this route (POST /api/banking/ws-token) with a JSON body
  * containing { user_id }.  This server-side handler signs the body with
- * HMAC-SHA256 and forwards it to the Lauren backend, which verifies the
+ * HMAC-SHA256 and forwards it to the backend, which verifies the
  * signature via SignatureGuard and returns a short-lived token.
  *
  * The browser then uses that token as a query parameter when opening the

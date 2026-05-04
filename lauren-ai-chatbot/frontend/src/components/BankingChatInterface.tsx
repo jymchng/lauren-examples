@@ -273,8 +273,7 @@ export function BankingChatInterface({ userId, userName, onComplete }: BankingCh
           </Button>
         </form>
         <p className="mt-1.5 text-[10px] text-muted-foreground text-center">
-          Identity verified · Payloads signed with HMAC-SHA256 ·{" "}
-          <span className="font-semibold">Lauren</span> AI
+          Identity verified · Payloads signed with HMAC-SHA256
         </p>
       </div>
     </div>

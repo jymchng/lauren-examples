@@ -5,7 +5,7 @@
  * Security guarantee: the user_id field is part of the HMAC-signed payload.
  * The browser never touches the signing secret; only this server-side handler
  * does. If the browser tampered with user_id, the signature would not match
- * and the Lauren backend's SignatureGuard would reject the request.
+ * and the backend's SignatureGuard would reject the request.
  */
 
 import { createHmac } from "crypto";

@@ -1,12 +1,12 @@
 /**
- * Next.js API route — signs the chat payload and proxies it to the Lauren backend.
+ * Next.js API route — signs the chat payload and proxies it to the backend.
  *
  * Why server-side signing?
  * -------------------------
  * The HMAC secret (`PAYLOAD_SECRET`) must never be exposed to the browser.
  * By routing all chat traffic through this Next.js server handler we can:
  *   1. Sign the payload with the shared secret.
- *   2. Forward the signed request to the Lauren backend.
+ *   2. Forward the signed request to the backend.
  *   3. Stream the SSE response back to the browser transparently.
  *
  * The browser only ever talks to the Next.js origin (same-origin); it never
@@ -15,7 +15,7 @@
  * Signing algorithm
  * -----------------
  * HMAC-SHA256 over the raw JSON-serialised request body, hex-encoded.
- * The signature is sent in the `X-Signature` header.  The Lauren backend's
+ * The signature is sent in the `X-Signature` header.  The backend's
  * `SignatureGuard` verifies it before the handler runs.
  */
 
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
     });
   } catch (err) {
     return NextResponse.json(
-      { error: "Failed to reach the Lauren backend", detail: String(err) },
+      { error: "Failed to reach the backend", detail: String(err) },
       { status: 502 }
     );
   }

@@ -1,5 +1,5 @@
 /**
- * Proxies GET /api/banking/accounts to the Lauren backend.
+ * Proxies GET /api/banking/accounts to the backend.
  * Returns all three accounts for the user-selector panel.
  */
 

@@ -241,7 +241,7 @@ export default function Home() {
             <div>
               <span className="font-bold text-base tracking-tight">SecureBank AI</span>
               <span className="hidden sm:inline text-xs text-muted-foreground ml-2">
-                Multi-agent banking demo built with Lauren AI
+                Multi-agent banking demo
               </span>
             </div>
           </div>

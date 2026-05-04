@@ -1,5 +1,5 @@
 /**
- * Proxies GET /api/banking/accounts/[userId] to the Lauren backend.
+ * Proxies GET /api/banking/accounts/[userId] to the backend.
  * Returns account detail with balance and recent transactions.
  */
 

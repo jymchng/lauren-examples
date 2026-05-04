@@ -62,8 +62,7 @@ export function DemoInfoPanel() {
       <Section title="About this demo" defaultOpen>
         <p>
           <strong className="text-foreground">SecureBank AI</strong> demonstrates
-          a secure, multi-agent banking assistant built with{" "}
-          <strong className="text-foreground">Lauren AI</strong>.
+          a secure, multi-agent banking assistant.
         </p>
         <p>
           Three demo users — <span className="font-medium text-[#10b981]">Alice</span>,{" "}
