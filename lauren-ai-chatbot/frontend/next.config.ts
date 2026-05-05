@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  allowedDevOrigins: ['194.163.151.162'],
   // distDir is overridden per-run via NEXT_DIST_DIR so that a stale
   // root-owned dev-server process (which may be watching this config)
   // uses the default ".next" directory while fresh runs use an isolated dir.

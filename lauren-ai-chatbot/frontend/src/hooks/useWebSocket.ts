@@ -92,8 +92,13 @@ export function useWebSocket({
       }
 
       // 2. Open the WebSocket directly to the backend
+      // Prefer the build-time env var; fall back to the browser's current
+      // hostname (port 8000) so the hook works from any IP without a redeploy.
       const wsBase =
-        process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost:8000";
+        process.env.NEXT_PUBLIC_WS_URL ||
+        (typeof window !== "undefined"
+          ? `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.hostname}:8000`
+          : "ws://localhost:8000");
       const ws = new WebSocket(
         `${wsBase}/ws/banking?token=${encodeURIComponent(token)}`
       );
