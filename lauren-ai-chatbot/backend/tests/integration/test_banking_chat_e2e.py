@@ -160,7 +160,7 @@ class TestBankingChatValidUsers:
         mock_response = AsyncMock()
         mock_response.content = "Your balance is $5,000.00"
 
-        with patch("lauren_ai._agents._runner.AgentRunner.run", return_value=mock_response):
+        with patch("lauren_ai._agents._runner.AgentRunnerBase.run", return_value=mock_response):
             resp = await client.post("/api/banking/chat", content=body, headers=_signed(body))
 
         assert resp.status_code == 200
@@ -171,7 +171,7 @@ class TestBankingChatValidUsers:
         mock_response = AsyncMock()
         mock_response.content = "Bob's balance is $3,200.00"
 
-        with patch("lauren_ai._agents._runner.AgentRunner.run", return_value=mock_response):
+        with patch("lauren_ai._agents._runner.AgentRunnerBase.run", return_value=mock_response):
             resp = await client.post("/api/banking/chat", content=body, headers=_signed(body))
 
         assert resp.status_code == 200
@@ -182,7 +182,7 @@ class TestBankingChatValidUsers:
         mock_response = AsyncMock()
         mock_response.content = "Charlie's balance is $1,800.00"
 
-        with patch("lauren_ai._agents._runner.AgentRunner.run", return_value=mock_response):
+        with patch("lauren_ai._agents._runner.AgentRunnerBase.run", return_value=mock_response):
             resp = await client.post("/api/banking/chat", content=body, headers=_signed(body))
 
         assert resp.status_code == 200
@@ -193,7 +193,7 @@ class TestBankingChatValidUsers:
         mock_response = AsyncMock()
         mock_response.content = "Hello Alice"
 
-        with patch("lauren_ai._agents._runner.AgentRunner.run", return_value=mock_response):
+        with patch("lauren_ai._agents._runner.AgentRunnerBase.run", return_value=mock_response):
             resp = await client.post("/api/banking/chat", content=body, headers=_signed(body))
 
         assert "text/event-stream" in resp.headers["content-type"]
@@ -204,7 +204,7 @@ class TestBankingChatValidUsers:
         mock_response = AsyncMock()
         mock_response.content = "A" * 100  # long enough to produce multiple chunks
 
-        with patch("lauren_ai._agents._runner.AgentRunner.run", return_value=mock_response):
+        with patch("lauren_ai._agents._runner.AgentRunnerBase.run", return_value=mock_response):
             resp = await client.post("/api/banking/chat", content=body, headers=_signed(body))
 
         events = _parse_sse(resp.content)
@@ -218,7 +218,7 @@ class TestBankingChatValidUsers:
         mock_response = AsyncMock()
         mock_response.content = "Balance: $5,000"
 
-        with patch("lauren_ai._agents._runner.AgentRunner.run", return_value=mock_response):
+        with patch("lauren_ai._agents._runner.AgentRunnerBase.run", return_value=mock_response):
             resp = await client.post("/api/banking/chat", content=body, headers=_signed(body))
 
         events = [e for e in _parse_sse(resp.content) if "event" in e]
@@ -230,7 +230,7 @@ class TestBankingChatValidUsers:
         mock_response = AsyncMock()
         mock_response.content = ""
 
-        with patch("lauren_ai._agents._runner.AgentRunner.run", return_value=mock_response):
+        with patch("lauren_ai._agents._runner.AgentRunnerBase.run", return_value=mock_response):
             resp = await client.post("/api/banking/chat", content=body, headers=_signed(body))
 
         events = [e for e in _parse_sse(resp.content) if "event" in e]
@@ -241,7 +241,7 @@ class TestBankingChatValidUsers:
         body = _body(user_id="alice")
 
         with patch(
-            "lauren_ai._agents._runner.AgentRunner.run",
+            "lauren_ai._agents._runner.AgentRunnerBase.run",
             side_effect=RuntimeError("LLM exploded"),
         ):
             resp = await client.post("/api/banking/chat", content=body, headers=_signed(body))
@@ -260,7 +260,7 @@ class TestBankingChatValidUsers:
             m.content = "ok"
             return m
 
-        with patch("lauren_ai._agents._runner.AgentRunner.run", side_effect=capture):
+        with patch("lauren_ai._agents._runner.AgentRunnerBase.run", side_effect=capture):
             await client.post("/api/banking/chat", content=body, headers=_signed(body))
 
         assert received_kwargs[0].get("conversation_id") == "conv-123"
@@ -279,7 +279,7 @@ class TestBankingChatValidUsers:
             m.content = "ok"
             return m
 
-        with patch("lauren_ai._agents._runner.AgentRunner.run", side_effect=capture):
+        with patch("lauren_ai._agents._runner.AgentRunnerBase.run", side_effect=capture):
             await client.post("/api/banking/chat", content=body, headers=_signed(body))
 
         exec_ctx = received_kwargs[0].get("execution_context")
@@ -298,7 +298,7 @@ class TestBankingChatValidUsers:
             m.content = "Alice Johnson"
             return m
 
-        with patch("lauren_ai._agents._runner.AgentRunner.run", side_effect=capture):
+        with patch("lauren_ai._agents._runner.AgentRunnerBase.run", side_effect=capture):
             await client.post("/api/banking/chat", content=body, headers=_signed(body))
 
         assert received_prompts
@@ -311,7 +311,7 @@ class TestBankingChatValidUsers:
         mock_response = AsyncMock()
         mock_response.content = "ok"
 
-        with patch("lauren_ai._agents._runner.AgentRunner.run", return_value=mock_response):
+        with patch("lauren_ai._agents._runner.AgentRunnerBase.run", return_value=mock_response):
             resp = await client.post("/api/banking/chat", content=body, headers=_signed(body))
 
         assert "x-response-time" in resp.headers

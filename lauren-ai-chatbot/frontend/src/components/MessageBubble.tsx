@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 
 export interface Message {
   id: string;
-  role: "user" | "assistant";
+  role: "user" | "assistant" | "system";
   content: string;
 }
 
@@ -95,6 +95,18 @@ const mdComponents: Components = {
 };
 
 export function MessageBubble({ message }: MessageBubbleProps) {
+  if (message.role === "system") {
+    return (
+      <div className="flex items-center gap-3 my-3 px-2">
+        <div className="flex-1 h-px bg-border" />
+        <span className="flex-shrink-0 text-[11px] text-muted-foreground font-medium px-2">
+          {message.content}
+        </span>
+        <div className="flex-1 h-px bg-border" />
+      </div>
+    );
+  }
+
   const isUser = message.role === "user";
 
   return (

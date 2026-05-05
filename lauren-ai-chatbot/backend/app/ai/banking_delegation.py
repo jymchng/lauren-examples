@@ -22,7 +22,7 @@ only describes the task (recipient, amount, etc.).
 import logging
 
 from lauren import injectable, Scope
-from lauren_ai import AgentRunner, ToolContext, tool
+from lauren_ai import AgentRunnerBase, ToolContext, tool
 
 from app.ai.transfer_agent import BankingTransferAgent
 
@@ -31,12 +31,20 @@ logger = logging.getLogger(__name__)
 
 
 @injectable(scope=Scope.SINGLETON)
-class TransferAgentRunner(AgentRunner):
-    """Dedicated runner subclass for the Transfer Agent.
+class TransferAgentRunner(AgentRunnerBase):
+    """Distinct DI token for the Transfer Agent's runner.
 
-    Used as a distinct DI token so the Transfer Agent's runner can be
-    resolved before the CRM ``AgentRunner`` is built.  This breaks the
-    circular dependency without post-construction wiring hacks.
+    Passed via ``injects=[TransferAgentRunner]`` to ``AgentModule.for_root()``
+    so that ``DelegateToBankingTransfer`` can inject it by concrete type,
+    avoiding ambiguity with the CRM ``AgentRunner``.
+    """
+
+@injectable(scope=Scope.SINGLETON)
+class CRMAgentRunner(AgentRunnerBase):
+    """Distinct DI token for the CRM Agent's runner.
+
+    Passed via ``injects=[CRMAgentRunner]`` to ``AgentModule.for_root()``
+    so that ``BankingChatController`` can inject the CRM runner by concrete type.
     """
 
 
@@ -59,10 +67,11 @@ class DelegateToBankingTransfer:
     def __init__(
         self,
         transfer_agent: BankingTransferAgent,
-        runner: TransferAgentRunner,
+        runner: TransferAgentRunner,     # was: AgentRunner (Protocol) — ambiguous
     ) -> None:
         self._transfer_agent = transfer_agent
         self._runner = runner
+
 
     async def run(self, ctx: ToolContext, task: str) -> dict:
         logger.debug("DelegateToBankingTransfer.run: task_len=%d", len(task))

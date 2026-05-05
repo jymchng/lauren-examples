@@ -350,20 +350,27 @@ class TestGetTransactionHistoryTool:
     @pytest.mark.asyncio
     async def test_no_exec_ctx_returns_security_error(self, db):
         tool = GetTransactionHistoryTool(db=db)
-        result = await tool.run(ctx=_make_ctx(None))
+        result = await tool.run(ctx=_make_ctx(None), user_id="alice")
         assert "error" in result
         assert "Security" in result["error"]
 
     @pytest.mark.asyncio
     async def test_invalid_session_user_returns_security_error(self, db):
         tool = GetTransactionHistoryTool(db=db)
-        result = await tool.run(ctx=_make_ctx("dave"))
+        result = await tool.run(ctx=_make_ctx("dave"), user_id="dave")
         assert "error" in result
+
+    @pytest.mark.asyncio
+    async def test_user_id_mismatch_returns_security_error(self, db):
+        tool = GetTransactionHistoryTool(db=db)
+        result = await tool.run(ctx=_make_ctx("alice"), user_id="bob")
+        assert "error" in result
+        assert "Security violation" in result["error"]
 
     @pytest.mark.asyncio
     async def test_empty_history(self, db):
         tool = GetTransactionHistoryTool(db=db)
-        result = await tool.run(ctx=_make_ctx("alice"))
+        result = await tool.run(ctx=_make_ctx("alice"), user_id="alice")
         assert "error" not in result
         assert result["total_shown"] == 0
         assert result["transactions"] == []
@@ -373,7 +380,7 @@ class TestGetTransactionHistoryTool:
         db.transfer("alice", "bob", 100.0, "t1")
         db.transfer("bob", "alice", 50.0, "t2")
         tool = GetTransactionHistoryTool(db=db)
-        result = await tool.run(ctx=_make_ctx("alice"))
+        result = await tool.run(ctx=_make_ctx("alice"), user_id="alice")
         assert result["total_shown"] == 2
 
     @pytest.mark.asyncio
@@ -381,21 +388,21 @@ class TestGetTransactionHistoryTool:
         for i in range(15):
             db.transfer("alice", "bob", 1.0, f"t{i}")
         tool = GetTransactionHistoryTool(db=db)
-        result = await tool.run(ctx=_make_ctx("alice"), limit=20)
+        result = await tool.run(ctx=_make_ctx("alice"), user_id="alice", limit=20)
         assert result["total_shown"] <= 10
 
     @pytest.mark.asyncio
     async def test_limit_clamped_to_1(self, db):
         db.transfer("alice", "bob", 10.0, "only")
         tool = GetTransactionHistoryTool(db=db)
-        result = await tool.run(ctx=_make_ctx("alice"), limit=0)
+        result = await tool.run(ctx=_make_ctx("alice"), user_id="alice", limit=0)
         assert result["total_shown"] == 1
 
     @pytest.mark.asyncio
     async def test_transaction_direction_sent(self, db):
         db.transfer("alice", "bob", 100.0, "to bob")
         tool = GetTransactionHistoryTool(db=db)
-        result = await tool.run(ctx=_make_ctx("alice"))
+        result = await tool.run(ctx=_make_ctx("alice"), user_id="alice")
         txn = result["transactions"][0]
         assert txn["direction"] == "sent"
 
@@ -403,14 +410,14 @@ class TestGetTransactionHistoryTool:
     async def test_transaction_direction_received(self, db):
         db.transfer("bob", "alice", 100.0, "from bob")
         tool = GetTransactionHistoryTool(db=db)
-        result = await tool.run(ctx=_make_ctx("alice"))
+        result = await tool.run(ctx=_make_ctx("alice"), user_id="alice")
         txn = result["transactions"][0]
         assert txn["direction"] == "received"
 
     @pytest.mark.asyncio
     async def test_result_has_account_metadata(self, db):
         tool = GetTransactionHistoryTool(db=db)
-        result = await tool.run(ctx=_make_ctx("alice"))
+        result = await tool.run(ctx=_make_ctx("alice"), user_id="alice")
         assert result["account_holder"] == "Alice Johnson"
         assert result["account_id"] == "ACC-001"
         assert "$5,000.00" in result["current_balance"]

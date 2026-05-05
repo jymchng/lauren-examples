@@ -216,19 +216,20 @@ class TransferFundsTool:
 class GetTransactionHistoryTool:
     """Retrieve recent transaction history for the authenticated user.
 
-    History is always fetched for the user authenticated in the current
-    session — the agent cannot request another user's history.
+    History is always fetched for the session-authenticated user.
+    The user_id argument must match the currently logged-in user.
 
     Args:
+        user_id: The user whose history to retrieve. Must match the authenticated session user.
         limit: Maximum number of transactions to return (1–10, default 5).
     """
 
     def __init__(self, db: BankDatabase) -> None:
         self._db = db
 
-    async def run(self, ctx: ToolContext, limit: int = 5) -> dict:
-        logger.debug("GetTransactionHistoryTool.run: limit=%d", limit)
-        # ── Security: same pattern as TransferFundsTool ───────────────────────
+    async def run(self, ctx: ToolContext, user_id: str, limit: int = 5) -> dict:
+        logger.debug("GetTransactionHistoryTool.run: user_id=%r limit=%d", user_id, limit)
+        # ── Security: same pattern as GetBalanceTool ──────────────────────────
         auth_uid = _auth_uid(ctx)
         logger.debug("GetTransactionHistoryTool.run: auth_uid=%r", auth_uid)
         if not auth_uid:
@@ -237,6 +238,13 @@ class GetTransactionHistoryTool:
                 "error": (
                     "Security error: no authenticated user found in "
                     "ExecutionContext.request.state.  Cannot retrieve history."
+                )
+            }
+        if auth_uid != user_id.lower():
+            return {
+                "error": (
+                    f"Security violation: authenticated user '{auth_uid}' cannot "
+                    f"access another user's transaction history ('{user_id}')."
                 )
             }
 

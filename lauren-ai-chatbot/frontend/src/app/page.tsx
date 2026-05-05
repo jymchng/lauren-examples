@@ -24,7 +24,7 @@ import { DemoInfoPanel } from "@/components/DemoInfoPanel";
 import { LiveActivityFeed, type ActivityEntry } from "@/components/LiveActivityFeed";
 import { SettingsPanel, type Theme, type FontSize } from "@/components/SettingsPanel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useWebSocket, type WsEvent, type TransferApprovalRequest } from "@/hooks/useWebSocket";
+import { useWebSocket, type WsEvent, type TransferApprovalRequest, type AgentHandoffEvent } from "@/hooks/useWebSocket";
 import { TransferApprovalDialog } from "@/components/TransferApprovalDialog";
 import { cn } from "@/lib/utils";
 
@@ -52,6 +52,9 @@ export default function Home() {
 
   // ── HITL approval dialog state ──────────────────────────────────────
   const [pendingApproval, setPendingApproval] = useState<TransferApprovalRequest | null>(null);
+
+  // ── Active agent state ───────────────────────────────────────────────
+  const [currentAgent, setCurrentAgent] = useState<string | null>(null);
 
   // ── UI state ────────────────────────────────────────────────────────
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -115,6 +118,8 @@ export default function Home() {
       setLiveBalances((prev) => ({ ...prev, ...balances }));
     } else if (event.type === "transfer_approval_request") {
       setPendingApproval(event as unknown as TransferApprovalRequest);
+    } else if (event.type === "agent_handoff") {
+      setCurrentAgent((event as unknown as AgentHandoffEvent).to_agent);
     } else {
       activityCounterRef.current += 1;
       setActivityEntries((prev) =>
@@ -128,6 +133,11 @@ export default function Home() {
   useEffect(() => {
     setSelectedUserId("alice");
   }, []);
+
+  // Reset active agent when user switches
+  useEffect(() => {
+    setCurrentAgent(null);
+  }, [selectedUserId]);
 
   useEffect(() => {
     fetch(`/api/banking/accounts?_t=${Date.now()}`)
@@ -356,6 +366,12 @@ export default function Home() {
                       </span>
                     </p>
                   )}
+                  {currentAgent && (
+                    <p className="text-xs text-primary mt-0.5">
+                      Talking to:{" "}
+                      <span className="font-semibold">{currentAgent}</span>
+                    </p>
+                  )}
                 </div>
                 {selectedAccount && (
                   <div
@@ -375,6 +391,7 @@ export default function Home() {
                     key={selectedUserId}
                     userId={selectedUserId}
                     userName={selectedAccount.name.split(" ")[0]}
+                    currentAgent={currentAgent}
                     onComplete={() => setAccountRefreshKey((k) => k + 1)}
                   />
                 </div>

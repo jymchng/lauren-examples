@@ -25,6 +25,14 @@ export interface TransferApprovalRequest {
   conversation_id: string;
 }
 
+export interface AgentHandoffEvent {
+  type: "agent_handoff";
+  from_agent: string;
+  to_agent: string;
+  reason?: string;
+  summary?: string;
+}
+
 export interface WsEvent {
   type:
     | "token_usage"
@@ -32,7 +40,8 @@ export interface WsEvent {
     | "tool_complete"
     | "run_complete"
     | "balance_changed"
-    | "transfer_approval_request";
+    | "transfer_approval_request"
+    | "agent_handoff";
   [key: string]: unknown;
 }
 

@@ -183,7 +183,7 @@ class TestApprovalToolDeclined:
             _decline(),
         )
         assert result["approved"] is False
-        assert result.get("reason") == "user_declined"
+        assert result.get("reason") == "User has declined the transfer"
 
     @pytest.mark.asyncio
     async def test_declined_does_not_write_token_to_metadata(self):
@@ -223,7 +223,7 @@ class TestApprovalToolTimeout:
         tool = ApprovalTool(approval_svc=svc, forwarder=fwd)
         result = await tool.run(_make_tool_ctx("alice"), to_user="bob", amount=100.0)
         assert result["approved"] is False
-        assert result["reason"] == "approval_timeout"
+        assert "120" in result["reason"] or "timeout" in result["reason"].lower()
 
     @pytest.mark.asyncio
     async def test_timeout_does_not_write_token(self, monkeypatch):

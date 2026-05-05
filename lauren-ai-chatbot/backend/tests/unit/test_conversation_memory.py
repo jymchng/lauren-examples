@@ -38,7 +38,7 @@ class TestConversationMemoryPersistence:
         cfg, mock = LLMConfig.for_testing()
         store = InMemoryConversationStore()
 
-        from lauren_ai._agents._runner import AgentRunner
+        from lauren_ai._agents._runner import AgentRunnerBase as AgentRunner
 
         runner = AgentRunner(
             transport=mock,
@@ -88,7 +88,7 @@ class TestConversationMemoryPersistence:
         cfg, mock = LLMConfig.for_testing()
         store = InMemoryConversationStore()
 
-        from lauren_ai._agents._runner import AgentRunner
+        from lauren_ai._agents._runner import AgentRunnerBase as AgentRunner
 
         runner = AgentRunner(
             transport=mock,
@@ -108,7 +108,7 @@ class TestConversationMemoryPersistence:
         cfg, mock = LLMConfig.for_testing()
         store = InMemoryConversationStore()
 
-        from lauren_ai._agents._runner import AgentRunner
+        from lauren_ai._agents._runner import AgentRunnerBase as AgentRunner
 
         runner = AgentRunner(
             transport=mock,
@@ -136,7 +136,7 @@ class TestConversationMemoryPersistence:
         cfg, mock = LLMConfig.for_testing()
         store = InMemoryConversationStore()
 
-        from lauren_ai._agents._runner import AgentRunner
+        from lauren_ai._agents._runner import AgentRunnerBase as AgentRunner
 
         runner = AgentRunner(
             transport=mock,

@@ -43,11 +43,14 @@ from lauren_ai import (
 )
 from lauren_ai._module import AgentModule, LLMService
 
+from app.ai.active_agent_module import ActiveAgentModule
+from app.ai.active_agent_store import ActiveAgentStore
 from app.ai.approval_module import ApprovalModule
 from app.ai.approval_tool import ApprovalTool
-from app.ai.banking_delegation import DelegateToBankingTransfer, TransferAgentRunner
+from app.ai.banking_delegation import DelegateToBankingTransfer, TransferAgentRunner, CRMAgentRunner
 from app.ai.banking_tools import GetBalanceTool, GetTransactionHistoryTool, TransferFundsTool
 from app.ai.crm_agent import BankingCRMAgent
+from app.ai.handoff_tool import HandoffBackToCRM, HandoffToBankingTransfer
 from app.ai.signals import signal_bus
 from app.ai.transfer_agent import BankingTransferAgent
 from app.ai.chat_banking_controller import BankingChatController
@@ -83,21 +86,28 @@ _TransferAgentModule = AgentModule.for_root(
     tools=[
         ApprovalTool,
         TransferFundsTool,
+        HandoffBackToCRM,
     ],
-    imports=[LLMProvider, BankingModule, ApprovalModule, WsModule],
+    imports=[LLMProvider, BankingModule, ApprovalModule, WsModule, ActiveAgentModule],
     signals=signal_bus,
     conversation_store=_conversation_store,
-    injects=[TransferAgentRunner],
+    injects=[TransferAgentRunner],  # Distinct runner token for the Transfer Agent
 )
 
 # The CRM Agent module imports _TransferAgentModule so that
 # DelegateToBankingTransfer can see and inject TransferAgentRunner.
 _CRMAgentModule = AgentModule.for_root(
     agents=[BankingCRMAgent],
-    tools=[DelegateToBankingTransfer, GetBalanceTool, GetTransactionHistoryTool],
-    imports=[LLMProvider, _TransferAgentModule, BankingModule],
+    tools=[
+        GetBalanceTool,
+        GetTransactionHistoryTool,
+        HandoffToBankingTransfer,
+        DelegateToBankingTransfer,
+    ],
+    imports=[LLMProvider, _TransferAgentModule, BankingModule, WsModule, ActiveAgentModule],
     signals=signal_bus,
     conversation_store=_conversation_store,
+    injects=[CRMAgentRunner],  # Distinct runner token for the CRM Agent
 )
 
 # ── 4. CostTracker — accumulates token costs from ModelCallComplete signals ──
@@ -116,14 +126,23 @@ _cost_tracker_provider = use_value(provide=CostTracker, value=_cost_tracker)
 
 
 @module(
-    imports=[LLMProvider, _CRMAgentModule, _TransferAgentModule, BankingModule, CryptoModule],
+    imports=[
+        LLMProvider,
+        _CRMAgentModule,
+        _TransferAgentModule,
+        BankingModule,
+        CryptoModule,
+        WsModule,
+        ActiveAgentModule,
+    ],
     providers=[
         _cost_tracker_provider,
     ],
     exports=[
         LLMService,
-        AgentRunner,
         BankingCRMAgent,
+        BankingTransferAgent,
+        ActiveAgentStore,
         CostTracker,
     ],
     controllers=[

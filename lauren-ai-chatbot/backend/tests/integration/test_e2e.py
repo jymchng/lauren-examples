@@ -173,7 +173,7 @@ class TestSignatureSecurityE2E:
         mock_response = AsyncMock()
         mock_response.content = "Your balance is $5,000.00"
 
-        with patch("lauren_ai._agents._runner.AgentRunner.run", return_value=mock_response):
+        with patch("lauren_ai._agents._runner.AgentRunnerBase.run", return_value=mock_response):
             resp = await client.post("/api/banking/chat", content=body, headers=_signed_headers(body))
 
         assert resp.status_code == 200
@@ -186,7 +186,7 @@ class TestSignatureSecurityE2E:
         mock_response = AsyncMock()
         mock_response.content = "Bob's balance"
 
-        with patch("lauren_ai._agents._runner.AgentRunner.run", return_value=mock_response):
+        with patch("lauren_ai._agents._runner.AgentRunnerBase.run", return_value=mock_response):
             resp = await client.post("/api/banking/chat", content=body, headers=_signed_headers(body))
 
         assert resp.status_code == 200
@@ -372,14 +372,16 @@ class TestModuleInjectsWiring:
         import asyncio
 
         from app.ai.banking_delegation import TransferAgentRunner
+        from app.ai.chat_banking_controller import BankingChatController
         from lauren_ai import AgentRunner
 
         loop = asyncio.new_event_loop()
         try:
-            ar = loop.run_until_complete(app.container.resolve(AgentRunner))
+            controller = loop.run_until_complete(app.container.resolve(BankingChatController))
             tr = loop.run_until_complete(app.container.resolve(TransferAgentRunner))
         finally:
             loop.close()
+        ar = controller._runner
         assert isinstance(ar, AgentRunner)
         assert isinstance(tr, TransferAgentRunner)
         assert ar is not tr
@@ -388,14 +390,14 @@ class TestModuleInjectsWiring:
         import asyncio
 
         from app.ai.banking_delegation import TransferAgentRunner
-        from lauren_ai import AgentRunner
+        from app.ai.chat_banking_controller import BankingChatController
 
         loop = asyncio.new_event_loop()
         try:
-            ar = loop.run_until_complete(app.container.resolve(AgentRunner))
+            controller = loop.run_until_complete(app.container.resolve(BankingChatController))
         finally:
             loop.close()
-        assert not isinstance(ar, TransferAgentRunner)
+        assert not isinstance(controller._runner, TransferAgentRunner)
 
     def test_transfer_runner_concrete_type_is_subclass(self, app):
         import asyncio

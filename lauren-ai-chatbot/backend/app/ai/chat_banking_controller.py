@@ -38,11 +38,15 @@ from lauren import EventStream, Json, Request, ServerSentEvent, controller, post
 from lauren.types import ExecutionContext
 from lauren_ai import AgentRunner
 
+from app.ai.active_agent_store import ActiveAgentStore
+from app.ai.agent_names import CRM_AGENT_NAME, TRANSFER_AGENT_NAME
 from app.ai.crm_agent import BankingCRMAgent
+from app.ai.transfer_agent import BankingTransferAgent
 from app.banking.bank_db import BankDatabase
 from app.ai.chat_schemas import ChatRequest
 from app.crypto.signature_guard import SignatureGuard
 from app.ws.context import current_user_id
+from app.ai.banking_delegation import TransferAgentRunner, CRMAgentRunner
 
 _VALID_USERS = frozenset({"alice", "bob", "charlie"})
 
@@ -50,17 +54,29 @@ _VALID_USERS = frozenset({"alice", "bob", "charlie"})
 @use_guards(SignatureGuard)
 @controller("/api/banking")
 class BankingChatController:
-    """Streams banking CRM agent responses as Server-Sent Events."""
+    """Streams banking agent responses as Server-Sent Events.
+
+    Routes each message to the correct agent based on the session's active
+    agent (tracked in ``ActiveAgentStore``).  Defaults to ``BankingCRMAgent``;
+    switches to ``BankingTransferAgent`` after a successful
+    ``HandoffToBankingTransfer`` tool call.
+    """
 
     def __init__(
         self,
-        runner: AgentRunner,
+        runner: CRMAgentRunner,
+        transfer_runner: TransferAgentRunner,
         db: BankDatabase,
         crm_agent: BankingCRMAgent,
+        transfer_agent: BankingTransferAgent,
+        active_agent_store: ActiveAgentStore,
     ) -> None:
         self._runner = runner
+        self._transfer_runner = transfer_runner
         self._db = db
         self._crm_agent = crm_agent
+        self._transfer_agent = transfer_agent
+        self._active_agent_store = active_agent_store
 
     @post("/chat")
     async def stream(self, body: Json[ChatRequest], exec_ctx: ExecutionContext) -> EventStream:
@@ -110,6 +126,11 @@ class BankingChatController:
         )
         full_prompt = auth_prefix + raw_message
 
+        def _resolve_agent(active: str):
+            if active == TRANSFER_AGENT_NAME:
+                return self._transfer_agent, self._transfer_runner
+            return self._crm_agent, self._runner
+
         async def generate():
             # Pin the user_id in the ContextVar so signal handlers emitted
             # during AgentRunner.run() can route events to the right WebSocket.
@@ -123,17 +144,44 @@ class BankingChatController:
             current_user_id.set(account.user_id)
             try:
                 conv_id = body.conversation_id
-                response = await self._runner.run(
-                    self._crm_agent,
+                chunk_size = 40
+
+                # Route to the active agent for this conversation.
+                active_before = self._active_agent_store.get(conv_id, CRM_AGENT_NAME)
+                agent, runner = _resolve_agent(active_before)
+
+                response = await runner.run(
+                    agent,
                     full_prompt,
                     conversation_id=conv_id,
                     execution_context=exec_ctx,
                     metadata={"conversation_id": conv_id},
                 )
                 content = response.content or ""
-                chunk_size = 40
                 for i in range(0, len(content), chunk_size):
                     yield ServerSentEvent(event="token", data=content[i : i + chunk_size])
+
+                # If a handoff occurred mid-turn, forward the triggering message
+                # to the newly active agent so it can respond immediately rather
+                # than waiting for the next user turn.
+                active_after = self._active_agent_store.get(conv_id, CRM_AGENT_NAME)
+                if active_after != active_before:
+                    # Separate the two agents' responses into distinct bubbles.
+                    # Pass the incoming agent name so the frontend can render
+                    # the correct divider label without waiting for the WebSocket.
+                    yield ServerSentEvent(event="break", data=active_after)
+                    new_agent, new_runner = _resolve_agent(active_after)
+                    response2 = await new_runner.run(
+                        new_agent,
+                        raw_message,
+                        conversation_id=conv_id,
+                        execution_context=exec_ctx,
+                        metadata={"conversation_id": conv_id},
+                    )
+                    content2 = response2.content or ""
+                    for i in range(0, len(content2), chunk_size):
+                        yield ServerSentEvent(event="token", data=content2[i : i + chunk_size])
+
                 yield ServerSentEvent(event="done", data="")
             except Exception as exc:
                 yield ServerSentEvent(event="error", data=str(exc))

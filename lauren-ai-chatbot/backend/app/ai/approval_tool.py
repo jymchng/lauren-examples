@@ -102,9 +102,10 @@ class ApprovalTool:
         )
 
         try:
-            approved = await asyncio.wait_for(asyncio.shield(fut), timeout=120.0)
+            timeout = 120.0
+            approved = await asyncio.wait_for(asyncio.shield(fut), timeout=timeout)
         except asyncio.TimeoutError:
-            return {"approved": False, "reason": "approval_timeout"}
+            return {"approved": False, "reason": f"Approval is NOT granted within the {timeout}-second timeout window."}
 
         if approved:
             if ctx.agent_context is not None:
@@ -118,4 +119,4 @@ class ApprovalTool:
                 }
             return {"approved": True, "message": "User approved the transfer."}
 
-        return {"approved": False, "reason": "user_declined"}
+        return {"approved": False, "reason": "User has declined the transfer"}
