@@ -40,7 +40,6 @@ function parseSSEChunk(chunk: string): Array<{ event: string; data: string }> {
 interface BankingChatInterfaceProps {
   userId: string;
   userName: string;
-  currentAgent?: string | null;
   onComplete?: () => void;
 }
 
@@ -51,7 +50,7 @@ const SUGGESTIONS = [
   "What's the account ID for my account?",
 ];
 
-export function BankingChatInterface({ userId, userName, currentAgent, onComplete }: BankingChatInterfaceProps) {
+export function BankingChatInterface({ userId, userName, onComplete }: BankingChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
@@ -61,8 +60,6 @@ export function BankingChatInterface({ userId, userName, currentAgent, onComplet
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const prevUserIdRef = useRef(userId);
-  // undefined = not yet initialised (skip injection on mount)
-  const prevAgentRef = useRef<string | null | undefined>(undefined);
 
   // Reset conversation when user switches
   useEffect(() => {
@@ -75,24 +72,6 @@ export function BankingChatInterface({ userId, userName, currentAgent, onComplet
       setStreaming(false);
     }
   }, [userId]);
-
-  // Inject system divider when active agent changes between turns.
-  // Skip while streaming — the SSE `break` event already placed the divider.
-  useEffect(() => {
-    const prev = prevAgentRef.current;
-    const curr = currentAgent ?? null;
-    if (prev === undefined) {
-      prevAgentRef.current = curr;
-      return;
-    }
-    if (curr && curr !== prev && !streaming) {
-      setMessages((msgs) => [
-        ...msgs,
-        { id: generateId(), role: "system" as const, content: curr },
-      ]);
-    }
-    prevAgentRef.current = curr;
-  }, [currentAgent, streaming]);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -165,24 +144,6 @@ export function BankingChatInterface({ userId, userName, currentAgent, onComplet
               if (event === "token") {
                 accumulated += data;
                 setStreamingContent(accumulated);
-              } else if (event === "break") {
-                // Handoff mid-stream: commit current content as its own bubble,
-                // then inject the agent-change divider. The agent name is in
-                // `data` so we don't need to wait for the WebSocket event.
-                if (accumulated) {
-                  setMessages((prev) => [
-                    ...prev,
-                    { id: generateId(), role: "assistant" as const, content: accumulated },
-                  ]);
-                  accumulated = "";
-                  setStreamingContent("");
-                }
-                if (data) {
-                  setMessages((prev) => [
-                    ...prev,
-                    { id: generateId(), role: "system" as const, content: data },
-                  ]);
-                }
               } else if (event === "done") {
                 const assistantMessage: Message = {
                   id: generateId(),
@@ -193,6 +154,20 @@ export function BankingChatInterface({ userId, userName, currentAgent, onComplet
                 setStreamingContent("");
                 setStreaming(false);
                 return;
+              } else if (event === "break") {
+                // Flush the before-handoff agent's response, then inject
+                // the agent-change divider. Order matters: response first,
+                // divider second, so messages appear in the correct sequence.
+                const msgs: Message[] = [];
+                if (accumulated) {
+                  msgs.push({ id: generateId(), role: "assistant", content: accumulated });
+                }
+                if (data) {
+                  msgs.push({ id: generateId(), role: "system", content: data });
+                }
+                if (msgs.length) setMessages((prev) => [...prev, ...msgs]);
+                setStreamingContent("");
+                accumulated = "";
               } else if (event === "error") {
                 throw new Error(data);
               }

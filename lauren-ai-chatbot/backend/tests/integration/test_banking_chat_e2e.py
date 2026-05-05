@@ -263,7 +263,9 @@ class TestBankingChatValidUsers:
         with patch("lauren_ai._agents._runner.AgentRunnerBase.run", side_effect=capture):
             await client.post("/api/banking/chat", content=body, headers=_signed(body))
 
-        assert received_kwargs[0].get("conversation_id") == "conv-123"
+        # The controller namespaces the conversation ID per-agent to prevent
+        # tool-call history from one agent leaking into the other.
+        assert received_kwargs[0].get("conversation_id", "").startswith("conv-123:")
 
     @pytest.mark.asyncio
     async def test_execution_context_passed_to_runner(self, client):

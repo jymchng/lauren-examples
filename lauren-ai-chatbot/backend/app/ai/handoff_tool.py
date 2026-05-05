@@ -30,6 +30,7 @@ Security:
 """
 
 import logging
+from typing import Generic, TypeVar
 
 from lauren_ai import ToolContext, tool
 
@@ -40,64 +41,11 @@ from app.ws.event_forwarder import EventForwarder
 
 logger = logging.getLogger(__name__)
 
-
-@tool()
-class HandoffToBankingTransfer:
-    """Hand the active conversation to the Banking Transfer Agent.
-
-    Unlike DelegateToBankingTransfer (one-shot subtask), this makes the
-    Transfer Agent the primary conversationalist for all subsequent messages
-    in this session.  The Transfer Agent can gather details, request approval,
-    execute the transfer, and then call HandoffBackToCRM when done.
-
-    Call this when the customer wants multi-step transfer assistance rather
-    than a simple single-shot delegation.
-
-    Args:
-        reason: Brief explanation of why the handoff is needed (shown in the
-                frontend activity feed).
-    """
-
-    def __init__(
-        self,
-        active_agent_store: ActiveAgentStore,
-        event_forwarder: EventForwarder,
-    ) -> None:
-        self._store = active_agent_store
-        self._forwarder = event_forwarder
-
-    async def run(self, ctx: ToolContext, reason: str) -> dict:
-        conversation_id: str = ctx.agent_context.metadata.get("conversation_id", "")
-        from_name: str = ctx.agent_context.agent_name
-        user_id: str | None = current_user_id.get()
-
-        if conversation_id:
-            self._store.set(conversation_id, TRANSFER_AGENT_NAME)
-
-        if user_id:
-            await self._forwarder.send_to_user(
-                user_id,
-                {
-                    "type": "agent_handoff",
-                    "from_agent": from_name,
-                    "to_agent": TRANSFER_AGENT_NAME,
-                    "reason": reason,
-                },
-            )
-
-        logger.debug(
-            "HandoffToBankingTransfer.run: conv_id=%s reason=%r",
-            conversation_id,
-            reason,
-        )
-        return {
-            "status": "handed_off",
-            "to_agent": TRANSFER_AGENT_NAME,
-        }
+_GenericAgentType = TypeVar("_GenericAgentType", bound=type)
 
 
 @tool()
-class HandoffBackToCRM:
+class HandoffBackTo(Generic[_GenericAgentType]):
     """Return the active conversation to the Banking CRM Agent.
 
     Call this after the transfer workflow is complete or when the customer
@@ -115,25 +63,33 @@ class HandoffBackToCRM:
     ) -> None:
         self._store = active_agent_store
         self._forwarder = event_forwarder
-
+        
+    
     async def run(self, ctx: ToolContext, summary: str) -> dict:
         conversation_id: str = ctx.agent_context.metadata.get("conversation_id", "")
         from_name: str = ctx.agent_context.agent_name
-        user_id: str | None = current_user_id.get()
-
+        to_name: str = CRM_AGENT_NAME if from_name == TRANSFER_AGENT_NAME else TRANSFER_AGENT_NAME
+        user_id: str = (
+            ctx.execution_context.request.state.get("user_id")
+            if ctx.execution_context and ctx.execution_context.request and ctx.execution_context.request.state
+            else None
+        ) or ""
+        
         if conversation_id:
-            self._store.reset(conversation_id)
+            if to_name == CRM_AGENT_NAME:
+                self._store.reset(conversation_id)
+            else:
+                self._store.set(conversation_id, to_name)
 
-        if user_id:
-            await self._forwarder.send_to_user(
-                user_id,
-                {
-                    "type": "agent_handoff",
-                    "from_agent": from_name,
-                    "to_agent": CRM_AGENT_NAME,
-                    "summary": summary,
-                },
-            )
+        await self._forwarder.send_to_user(
+            user_id,
+            {
+                "type": "agent_handoff",
+                "from_agent": from_name,
+                "to_agent": to_name,
+                "summary": summary,
+            },
+        )
 
         logger.debug(
             "HandoffBackToCRM.run: conv_id=%s summary=%r",
@@ -142,6 +98,6 @@ class HandoffBackToCRM:
         )
         return {
             "status": "handed_back",
-            "to_agent": CRM_AGENT_NAME,
+            "to_agent": to_name,
             "summary": summary,
         }

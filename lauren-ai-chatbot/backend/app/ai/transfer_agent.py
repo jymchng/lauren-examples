@@ -21,7 +21,7 @@ from lauren_ai import agent, use_tools
 from app.ai.agent_names import TRANSFER_AGENT_NAME
 from app.ai.approval_tool import ApprovalTool
 from app.ai.banking_tools import TransferFundsTool
-from app.ai.handoff_tool import HandoffBackToCRM
+from app.ai.handoff_tool import HandoffBackTo
 
 _SYSTEM = """\
 You are the SecureBank Transfer Agent — a specialist that executes fund \
@@ -73,6 +73,6 @@ logger = logging.getLogger(__name__)
 
 
 @agent(name=TRANSFER_AGENT_NAME, model=None, system=_SYSTEM, max_turns=10)
-@use_tools(ApprovalTool, TransferFundsTool, HandoffBackToCRM)
+@use_tools(ApprovalTool, TransferFundsTool, HandoffBackTo)
 class BankingTransferAgent:
     """Transfer execution agent (reached via CRM delegation or conversation handoff)."""

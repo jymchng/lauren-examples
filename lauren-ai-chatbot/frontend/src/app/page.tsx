@@ -54,7 +54,7 @@ export default function Home() {
   const [pendingApproval, setPendingApproval] = useState<TransferApprovalRequest | null>(null);
 
   // ── Active agent state ───────────────────────────────────────────────
-  const [currentAgent, setCurrentAgent] = useState<string | null>(null);
+  const [currentAgent, setCurrentAgent] = useState<string>("Banking CRM Agent");
 
   // ── UI state ────────────────────────────────────────────────────────
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -136,7 +136,7 @@ export default function Home() {
 
   // Reset active agent when user switches
   useEffect(() => {
-    setCurrentAgent(null);
+    setCurrentAgent("Banking CRM Agent");
   }, [selectedUserId]);
 
   useEffect(() => {
@@ -366,12 +366,10 @@ export default function Home() {
                       </span>
                     </p>
                   )}
-                  {currentAgent && (
-                    <p className="text-xs text-primary mt-0.5">
-                      Talking to:{" "}
-                      <span className="font-semibold">{currentAgent}</span>
-                    </p>
-                  )}
+                  <p className="text-xs text-primary mt-0.5">
+                    Talking to:{" "}
+                    <span className="font-semibold">{currentAgent}</span>
+                  </p>
                 </div>
                 {selectedAccount && (
                   <div
@@ -391,7 +389,6 @@ export default function Home() {
                     key={selectedUserId}
                     userId={selectedUserId}
                     userName={selectedAccount.name.split(" ")[0]}
-                    currentAgent={currentAgent}
                     onComplete={() => setAccountRefreshKey((k) => k + 1)}
                   />
                 </div>

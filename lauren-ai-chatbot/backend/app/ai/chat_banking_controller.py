@@ -34,9 +34,8 @@ Security guarantees
 
 from __future__ import annotations
 
-from lauren import EventStream, Json, Request, ServerSentEvent, controller, post, use_guards
+from lauren import EventStream, Json, ServerSentEvent, controller, post, use_guards
 from lauren.types import ExecutionContext
-from lauren_ai import AgentRunner
 
 from app.ai.active_agent_store import ActiveAgentStore
 from app.ai.agent_names import CRM_AGENT_NAME, TRANSFER_AGENT_NAME
@@ -150,10 +149,14 @@ class BankingChatController:
                 active_before = self._active_agent_store.get(conv_id, CRM_AGENT_NAME)
                 agent, runner = _resolve_agent(active_before)
 
+                # Each agent uses a namespaced conversation ID so that tool
+                # calls from one agent never appear in the other agent's
+                # history. The plain conv_id stays in metadata so the
+                # HandoffBackTo tool can key ActiveAgentStore correctly.
                 response = await runner.run(
                     agent,
                     full_prompt,
-                    conversation_id=conv_id,
+                    conversation_id=f"{conv_id}:{active_before}",
                     execution_context=exec_ctx,
                     metadata={"conversation_id": conv_id},
                 )
@@ -166,15 +169,12 @@ class BankingChatController:
                 # than waiting for the next user turn.
                 active_after = self._active_agent_store.get(conv_id, CRM_AGENT_NAME)
                 if active_after != active_before:
-                    # Separate the two agents' responses into distinct bubbles.
-                    # Pass the incoming agent name so the frontend can render
-                    # the correct divider label without waiting for the WebSocket.
                     yield ServerSentEvent(event="break", data=active_after)
                     new_agent, new_runner = _resolve_agent(active_after)
                     response2 = await new_runner.run(
                         new_agent,
-                        raw_message,
-                        conversation_id=conv_id,
+                        full_prompt,
+                        conversation_id=f"{conv_id}:{active_after}",
                         execution_context=exec_ctx,
                         metadata={"conversation_id": conv_id},
                     )
