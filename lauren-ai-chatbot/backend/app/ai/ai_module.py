@@ -43,6 +43,8 @@ from lauren_ai import (
 )
 from lauren_ai._module import AgentModule, LLMService
 
+from app.ai.approval_module import ApprovalModule
+from app.ai.approval_tool import ApprovalTool
 from app.ai.banking_delegation import DelegateToBankingTransfer, TransferAgentRunner
 from app.ai.banking_tools import GetBalanceTool, GetTransactionHistoryTool, TransferFundsTool
 from app.ai.crm_agent import BankingCRMAgent
@@ -51,6 +53,7 @@ from app.ai.transfer_agent import BankingTransferAgent
 from app.ai.chat_banking_controller import BankingChatController
 from app.banking.banking_module import BankingModule
 from app.crypto.crypto_module import CryptoModule
+from app.ws.ws_module import WsModule
 
 logger = logging.getLogger(__name__)
 
@@ -78,9 +81,10 @@ _conversation_store = InMemoryConversationStore()
 _TransferAgentModule = AgentModule.for_root(
     agents=[BankingTransferAgent],
     tools=[
+        ApprovalTool,
         TransferFundsTool,
     ],
-    imports=[LLMProvider, BankingModule],
+    imports=[LLMProvider, BankingModule, ApprovalModule, WsModule],
     signals=signal_bus,
     conversation_store=_conversation_store,
     injects=[TransferAgentRunner],

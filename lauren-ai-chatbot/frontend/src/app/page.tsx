@@ -24,7 +24,8 @@ import { DemoInfoPanel } from "@/components/DemoInfoPanel";
 import { LiveActivityFeed, type ActivityEntry } from "@/components/LiveActivityFeed";
 import { SettingsPanel, type Theme, type FontSize } from "@/components/SettingsPanel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useWebSocket, type WsEvent } from "@/hooks/useWebSocket";
+import { useWebSocket, type WsEvent, type TransferApprovalRequest } from "@/hooks/useWebSocket";
+import { TransferApprovalDialog } from "@/components/TransferApprovalDialog";
 import { cn } from "@/lib/utils";
 
 function initials(name: string): string {
@@ -48,6 +49,9 @@ export default function Home() {
   const [liveBalances, setLiveBalances] = useState<Record<string, number>>({});
   const [activityEntries, setActivityEntries] = useState<ActivityEntry[]>([]);
   const activityCounterRef = useRef(0);
+
+  // ── HITL approval dialog state ──────────────────────────────────────
+  const [pendingApproval, setPendingApproval] = useState<TransferApprovalRequest | null>(null);
 
   // ── UI state ────────────────────────────────────────────────────────
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -109,6 +113,8 @@ export default function Home() {
     if (event.type === "balance_changed") {
       const balances = event.balances as Record<string, number>;
       setLiveBalances((prev) => ({ ...prev, ...balances }));
+    } else if (event.type === "transfer_approval_request") {
+      setPendingApproval(event as unknown as TransferApprovalRequest);
     } else {
       activityCounterRef.current += 1;
       setActivityEntries((prev) =>
@@ -381,6 +387,12 @@ export default function Home() {
           </Card>
         </main>
       </div>
+      {/* ── HITL transfer approval dialog ───────────────────────────── */}
+      <TransferApprovalDialog
+        request={pendingApproval}
+        userId={selectedUserId ?? ""}
+        onClose={() => setPendingApproval(null)}
+      />
     </div>
   );
 }

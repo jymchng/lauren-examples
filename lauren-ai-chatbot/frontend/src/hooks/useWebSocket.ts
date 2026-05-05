@@ -15,13 +15,24 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+export interface TransferApprovalRequest {
+  type: "transfer_approval_request";
+  approval_id: string;
+  from_user: string;
+  to_user: string;
+  amount_usd: number;
+  description: string;
+  conversation_id: string;
+}
+
 export interface WsEvent {
   type:
     | "token_usage"
     | "tool_started"
     | "tool_complete"
     | "run_complete"
-    | "balance_changed";
+    | "balance_changed"
+    | "transfer_approval_request";
   [key: string]: unknown;
 }
 

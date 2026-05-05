@@ -2,14 +2,15 @@
 # @tool() uses inspect.signature() at decoration time; PEP 563 breaks it.
 """Unit tests for banking tools: GetBalanceTool, TransferFundsTool, GetTransactionHistoryTool.
 
-Tests are organised around the security model:
-- No execution_context → returns security error
-- Invalid account in context → returns security error
-- Valid context → performs the operation
+Tests are organised around two layers:
+- HITL gate (TransferFundsTool): no/invalid approval token → rejects before the DB call
+- Security model: no/invalid execution_context → security error
+- Happy path: valid token + valid context → performs the operation
 """
 
 from __future__ import annotations
 
+import time
 from unittest.mock import MagicMock
 
 import pytest
@@ -28,8 +29,18 @@ from app.banking.bank_db import BankDatabase
 # ---------------------------------------------------------------------------
 
 
-def _make_ctx(user_id: str | None = None) -> MagicMock:
-    """Return a ToolContext mock with execution_context.request.state set."""
+def _make_ctx(
+    user_id: str | None = None,
+    *,
+    approval_token: dict | None = None,
+) -> MagicMock:
+    """Return a ToolContext mock with execution_context.request.state set.
+
+    ``approval_token`` is placed into ``ctx.agent_context.metadata`` so that
+    TransferFundsTool's HITL gate can find it.  Pass a dict produced by
+    ``_valid_token()`` for happy-path tests, or ``None`` (default) to test
+    rejection at the gate.
+    """
     ctx = MagicMock()
     if user_id is None:
         ctx.execution_context = None
@@ -41,25 +52,50 @@ def _make_ctx(user_id: str | None = None) -> MagicMock:
         exec_ctx = MagicMock()
         exec_ctx.request = request
         ctx.execution_context = exec_ctx
+
+    # agent_context.metadata holds the one-shot approval token written by ApprovalTool
+    # The token is stored at metadata["transfer_approved"], not spread into metadata.
+    agent_ctx = MagicMock()
+    agent_ctx.metadata = {"transfer_approved": dict(approval_token)} if approval_token else {}
+    ctx.agent_context = agent_ctx
+
     return ctx
 
 
-def _make_ctx_no_request() -> MagicMock:
+def _make_ctx_no_request(*, approval_token: dict | None = None) -> MagicMock:
     ctx = MagicMock()
     exec_ctx = MagicMock()
     exec_ctx.request = None
     ctx.execution_context = exec_ctx
+    agent_ctx = MagicMock()
+    agent_ctx.metadata = {"transfer_approved": dict(approval_token)} if approval_token else {}
+    ctx.agent_context = agent_ctx
     return ctx
 
 
-def _make_ctx_no_state() -> MagicMock:
+def _make_ctx_no_state(*, approval_token: dict | None = None) -> MagicMock:
     ctx = MagicMock()
     exec_ctx = MagicMock()
     request = MagicMock()
     request.state = None
     exec_ctx.request = request
     ctx.execution_context = exec_ctx
+    agent_ctx = MagicMock()
+    agent_ctx.metadata = {"transfer_approved": dict(approval_token)} if approval_token else {}
+    ctx.agent_context = agent_ctx
     return ctx
+
+
+def _valid_token(to_user: str = "bob", amount: float = 100.0) -> dict:
+    """Return a fresh, non-expired approval token for the given transfer details."""
+    return {
+        "approved": True,
+        "approval_id": "test-approval-id",
+        "conversation_id": "test-conv",
+        "to_user": to_user,
+        "amount": amount,
+        "approved_at": time.time(),
+    }
 
 
 @pytest.fixture()
@@ -142,15 +178,91 @@ class TestGetBalanceTool:
 
 
 # ---------------------------------------------------------------------------
-# TransferFundsTool
+# TransferFundsTool — HITL gate tests
 # ---------------------------------------------------------------------------
 
 
 class TestTransferFundsTool:
+    # ── HITL gate: token missing or invalid ──────────────────────────────────
+
+    @pytest.mark.asyncio
+    async def test_no_approval_token_returns_approval_required_error(self, db):
+        """No token in agent_context.metadata → tool demands approval first."""
+        tool = TransferFundsTool(db=db)
+        result = await tool.run(ctx=_make_ctx("alice"), to_user="bob", amount=100.0)
+        assert "error" in result
+        assert "approval" in result["error"].lower()
+
+    @pytest.mark.asyncio
+    async def test_token_with_wrong_to_user_returns_mismatch_error(self, db):
+        token = _valid_token(to_user="charlie", amount=100.0)
+        tool = TransferFundsTool(db=db)
+        result = await tool.run(
+            ctx=_make_ctx("alice", approval_token=token),
+            to_user="bob",
+            amount=100.0,
+        )
+        assert "error" in result
+        assert "do not match" in result["error"].lower()
+
+    @pytest.mark.asyncio
+    async def test_token_with_wrong_amount_returns_mismatch_error(self, db):
+        token = _valid_token(to_user="bob", amount=50.0)
+        tool = TransferFundsTool(db=db)
+        result = await tool.run(
+            ctx=_make_ctx("alice", approval_token=token),
+            to_user="bob",
+            amount=100.0,
+        )
+        assert "error" in result
+        assert "amount" in result["error"].lower()
+
+    @pytest.mark.asyncio
+    async def test_expired_token_returns_expiry_error(self, db):
+        token = _valid_token(to_user="bob", amount=100.0)
+        token["approved_at"] = time.time() - 120  # 120 s ago > 60 s limit
+        tool = TransferFundsTool(db=db)
+        result = await tool.run(
+            ctx=_make_ctx("alice", approval_token=token),
+            to_user="bob",
+            amount=100.0,
+        )
+        assert "error" in result
+        assert "expired" in result["error"].lower()
+
+    @pytest.mark.asyncio
+    async def test_token_consumed_after_use(self, db):
+        """Approval token is deleted from metadata after a successful transfer."""
+        token = _valid_token(to_user="bob", amount=100.0)
+        ctx = _make_ctx("alice", approval_token=token)
+        tool = TransferFundsTool(db=db)
+        await tool.run(ctx=ctx, to_user="bob", amount=100.0)
+        assert "transfer_approved" not in ctx.agent_context.metadata
+
+    @pytest.mark.asyncio
+    async def test_amount_within_tolerance_passes(self, db):
+        """Floating-point amounts within 0.001 tolerance should not be rejected."""
+        token = _valid_token(to_user="bob", amount=100.000_0001)
+        tool = TransferFundsTool(db=db)
+        result = await tool.run(
+            ctx=_make_ctx("alice", approval_token=token),
+            to_user="bob",
+            amount=100.0,
+        )
+        assert result.get("success") is True
+
+    # ── Security layer (reached only after a valid approval token) ───────────
+
     @pytest.mark.asyncio
     async def test_no_exec_ctx_returns_security_error(self, db):
+        """Token passes but exec_ctx is None → security error."""
         tool = TransferFundsTool(db=db)
-        result = await tool.run(ctx=_make_ctx(None), to_user="bob", amount=100.0)
+        token = _valid_token(to_user="bob", amount=100.0)
+        result = await tool.run(
+            ctx=_make_ctx(None, approval_token=token),
+            to_user="bob",
+            amount=100.0,
+        )
         assert "error" in result
         assert "Security" in result["error"]
 
@@ -158,14 +270,26 @@ class TestTransferFundsTool:
     async def test_invalid_session_user_returns_security_error(self, db):
         """User 'dave' is not in the bank — should be rejected as a security violation."""
         tool = TransferFundsTool(db=db)
-        result = await tool.run(ctx=_make_ctx("dave"), to_user="bob", amount=100.0)
+        token = _valid_token(to_user="bob", amount=100.0)
+        result = await tool.run(
+            ctx=_make_ctx("dave", approval_token=token),
+            to_user="bob",
+            amount=100.0,
+        )
         assert "error" in result
         assert "Security" in result["error"] or "violation" in result["error"].lower()
+
+    # ── Happy path ───────────────────────────────────────────────────────────
 
     @pytest.mark.asyncio
     async def test_successful_transfer(self, db):
         tool = TransferFundsTool(db=db)
-        result = await tool.run(ctx=_make_ctx("alice"), to_user="bob", amount=500.0)
+        token = _valid_token(to_user="bob", amount=500.0)
+        result = await tool.run(
+            ctx=_make_ctx("alice", approval_token=token),
+            to_user="bob",
+            amount=500.0,
+        )
         assert result.get("success") is True
         assert result["amount_usd"] == 500.0
         assert "transaction_id" in result
@@ -174,7 +298,8 @@ class TestTransferFundsTool:
     @pytest.mark.asyncio
     async def test_successful_transfer_updates_balance(self, db):
         tool = TransferFundsTool(db=db)
-        await tool.run(ctx=_make_ctx("alice"), to_user="bob", amount=200.0)
+        token = _valid_token(to_user="bob", amount=200.0)
+        await tool.run(ctx=_make_ctx("alice", approval_token=token), to_user="bob", amount=200.0)
         alice = db.get_account("alice")
         assert alice.balance == 4_800.00
 
@@ -182,20 +307,36 @@ class TestTransferFundsTool:
     async def test_transfer_error_returns_error_dict(self, db):
         """Insufficient funds → db.transfer returns a string → tool wraps in {"error": ...}."""
         tool = TransferFundsTool(db=db)
-        result = await tool.run(ctx=_make_ctx("charlie"), to_user="alice", amount=999_999.0)
+        token = _valid_token(to_user="alice", amount=999_999.0)
+        result = await tool.run(
+            ctx=_make_ctx("charlie", approval_token=token),
+            to_user="alice",
+            amount=999_999.0,
+        )
         assert "error" in result
 
     @pytest.mark.asyncio
     async def test_transfer_with_description(self, db):
         tool = TransferFundsTool(db=db)
-        result = await tool.run(ctx=_make_ctx("alice"), to_user="bob", amount=50.0, description="rent")
+        token = _valid_token(to_user="bob", amount=50.0)
+        result = await tool.run(
+            ctx=_make_ctx("alice", approval_token=token),
+            to_user="bob",
+            amount=50.0,
+            description="rent",
+        )
         assert result.get("success") is True
         assert result["description"] == "rent"
 
     @pytest.mark.asyncio
     async def test_result_has_formatted_amounts(self, db):
         tool = TransferFundsTool(db=db)
-        result = await tool.run(ctx=_make_ctx("alice"), to_user="bob", amount=1_234.56)
+        token = _valid_token(to_user="bob", amount=1_234.56)
+        result = await tool.run(
+            ctx=_make_ctx("alice", approval_token=token),
+            to_user="bob",
+            amount=1_234.56,
+        )
         assert "$1,234.56" in result["amount_formatted"]
         assert result["new_balance_usd"] is not None
 

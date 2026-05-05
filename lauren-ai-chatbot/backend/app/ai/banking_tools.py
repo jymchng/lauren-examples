@@ -37,6 +37,7 @@ read-only and needed to check a transfer recipient's account.
 from __future__ import annotations
 
 import logging
+import time
 
 from lauren_ai import ToolContext, tool
 
@@ -131,6 +132,36 @@ class TransferFundsTool:
         description: str = "",
     ) -> dict:
         logger.debug("TransferFundsTool.run: to_user=%r amount=%.2f", to_user, amount)
+
+        # ── HITL gate: validate approval token written by ApprovalTool ────────
+        agent_ctx = ctx.agent_context
+        token = agent_ctx.metadata.get("transfer_approved") if agent_ctx else None
+        if not token or not token.get("approved"):
+            return {
+                "error": (
+                    "Transfer requires explicit user approval first. "
+                    "Call ApprovalTool with the exact transfer details before calling TransferFundsTool."
+                )
+            }
+        if token.get("to_user") != to_user.lower():
+            return {
+                "error": (
+                    f"Transfer details do not match the approved request "
+                    f"(approved to_user={token.get('to_user')!r}, requested to_user={to_user.lower()!r})."
+                )
+            }
+        if abs(token.get("amount", 0) - amount) > 0.001:
+            return {
+                "error": (
+                    f"Transfer amount does not match the approved request "
+                    f"(approved=${token.get('amount'):.2f}, requested=${amount:.2f})."
+                )
+            }
+        if time.time() - token.get("approved_at", 0) > 60:
+            return {"error": "Approval token expired (> 60 s). Please request approval again."}
+        # Consume the one-shot token before executing the transfer.
+        del agent_ctx.metadata["transfer_approved"]
+
         # ── Security: read sender from ctx.execution_context.request.state ───
         # ctx.execution_context is a lauren ExecutionContext whose .request was
         # populated by SignatureGuard from the HMAC-signed payload.  The LLM

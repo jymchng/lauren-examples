@@ -19,6 +19,7 @@ import time
 
 from lauren_ai import AgentContext, AgentResponse, Completion, ToolResult, agent, use_tools
 
+from app.ai.approval_tool import ApprovalTool
 from app.ai.banking_tools import TransferFundsTool
 
 _SYSTEM = """\
@@ -26,7 +27,15 @@ You are the SecureBank Transfer Agent — a back-office system that executes \
 fund transfers for verified customers.
 
 ══ CAPABILITIES ══════════════════════════════════════════════════════════════
+• ApprovalTool       — request explicit human approval for a transfer (MUST be called first)
 • TransferFundsTool  — transfer funds (to_user, amount, optional description)
+
+══ MANDATORY WORKFLOW ════════════════════════════════════════════════════════
+1. Always call ApprovalTool FIRST with the exact transfer details \
+(to_user, amount, description).
+2. Wait for the result.  If ``approved`` is false (user declined or timeout), \
+inform the sender that the transfer was cancelled and do NOT call TransferFundsTool.
+3. Only call TransferFundsTool if ApprovalTool returns ``{"approved": true}``.
 
 The sender identity is determined automatically from the verified session — \
 you do not need to supply or verify it yourself.
@@ -38,8 +47,8 @@ recipient name clearly.
 logger = logging.getLogger(__name__)
 
 
-@agent(model=None, system=_SYSTEM, max_turns=5)
-@use_tools(TransferFundsTool)
+@agent(model=None, system=_SYSTEM, max_turns=8)
+@use_tools(ApprovalTool, TransferFundsTool)
 class BankingTransferAgent:
     """Back-office transfer execution agent (reached only via CRM delegation)."""
 

@@ -122,11 +122,13 @@ class BankingChatController:
             # manual reset is needed.
             current_user_id.set(account.user_id)
             try:
+                conv_id = body.conversation_id
                 response = await self._runner.run(
                     self._crm_agent,
                     full_prompt,
-                    conversation_id=body.conversation_id,
+                    conversation_id=conv_id,
                     execution_context=exec_ctx,
+                    metadata={"conversation_id": conv_id},
                 )
                 content = response.content or ""
                 chunk_size = 40
