@@ -363,3 +363,57 @@ class TestBankingWiringE2E:
         from lauren_ai._tools import TOOL_META
 
         assert hasattr(DelegateToBankingTransfer, TOOL_META)
+
+
+class TestModuleInjectsWiring:
+    """Verify injects=[TransferAgentRunner] produces independent DI tokens."""
+
+    def test_transfer_and_crm_runners_are_distinct_singletons(self, app):
+        import asyncio
+
+        from app.ai.banking_delegation import TransferAgentRunner
+        from lauren_ai import AgentRunner
+
+        loop = asyncio.new_event_loop()
+        try:
+            ar = loop.run_until_complete(app.container.resolve(AgentRunner))
+            tr = loop.run_until_complete(app.container.resolve(TransferAgentRunner))
+        finally:
+            loop.close()
+        assert isinstance(ar, AgentRunner)
+        assert isinstance(tr, TransferAgentRunner)
+        assert ar is not tr
+
+    def test_crm_runner_is_not_transfer_runner_subtype(self, app):
+        import asyncio
+
+        from app.ai.banking_delegation import TransferAgentRunner
+        from lauren_ai import AgentRunner
+
+        loop = asyncio.new_event_loop()
+        try:
+            ar = loop.run_until_complete(app.container.resolve(AgentRunner))
+        finally:
+            loop.close()
+        assert not isinstance(ar, TransferAgentRunner)
+
+    def test_transfer_runner_concrete_type_is_subclass(self, app):
+        import asyncio
+
+        from app.ai.banking_delegation import TransferAgentRunner
+
+        loop = asyncio.new_event_loop()
+        try:
+            tr = loop.run_until_complete(app.container.resolve(TransferAgentRunner))
+        finally:
+            loop.close()
+        assert type(tr) is TransferAgentRunner
+
+    def test_ai_module_uses_injects_not_runner_class(self):
+        import inspect
+
+        from app.ai import ai_module
+
+        src = inspect.getsource(ai_module)
+        assert "injects=[TransferAgentRunner]" in src
+        assert "runner_class=" not in src

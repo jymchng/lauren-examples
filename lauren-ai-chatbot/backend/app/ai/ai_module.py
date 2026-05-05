@@ -70,7 +70,7 @@ _conversation_store = InMemoryConversationStore()
 
 # ── 3. Agent + tool wiring via two AgentModule calls ────────────────────────
 #
-# The Transfer Agent module uses ``runner_class=TransferAgentRunner`` so its
+# The Transfer Agent module uses ``injects=[TransferAgentRunner]`` so its
 # runner is registered under a distinct DI token.  This lets
 # ``DelegateToBankingTransfer`` inject ``TransferAgentRunner`` without
 # creating a cycle with the CRM ``AgentRunner``.
@@ -83,7 +83,7 @@ _TransferAgentModule = AgentModule.for_root(
     imports=[LLMProvider, BankingModule],
     signals=signal_bus,
     conversation_store=_conversation_store,
-    runner_class=TransferAgentRunner,
+    injects=[TransferAgentRunner],
 )
 
 # The CRM Agent module imports _TransferAgentModule so that
