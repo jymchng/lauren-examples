@@ -34,6 +34,7 @@ Point the Next.js frontend at that URL::
 
     # frontend/.env.local
     BACKEND_URL=https://<workspace>--securebank-ai-backend-web.modal.run
+    NEXT_PUBLIC_WS_URL=wss://<workspace>--securebank-ai-backend-web.modal.run
     PAYLOAD_SECRET=<same value you set in the Modal secret>
 
 Routes exposed
@@ -51,6 +52,10 @@ GET  /api/metrics/cost              Token cost breakdown by model
 
 from __future__ import annotations
 
+import atexit
+import shutil
+import subprocess
+import tempfile
 from pathlib import Path
 
 import modal
@@ -64,7 +69,35 @@ _LAUREN_ALL = _HERE.parent.parent.parent  # .../lauren-all/
 
 FRAMEWORK_PATH = _LAUREN_ALL / "lauren-framework"
 LAUREN_AI_PATH = _LAUREN_ALL / "lauren-ai"
-IGNORE_DIRS = ["__pycache__", "*.pyc", ".git", ".venv", "venv", "dist", ".pytest_cache", ".ruff_cache", "tests"]
+
+# ---------------------------------------------------------------------------
+# Build wheels locally before constructing the Modal image
+# ---------------------------------------------------------------------------
+#
+# ``uv build --wheel`` runs entirely on the deploying machine — no build step
+# needed inside the container.  Modal derives each layer's cache key from the
+# wheel file's content hash, so a layer is only rebuilt when the corresponding
+# package actually changed.  This gives better granularity than hashing a
+# whole source tree and keeps the image clean (no source files, no tests, no
+# docs — just the installable artifact).
+#
+# ``modal.is_local()`` guards the build so that wheels are never rebuilt when
+# this module is imported inside a running container.
+
+
+def _build_wheel(source_dir: Path, out_dir: Path) -> Path:
+    """Build a wheel for the package at *source_dir* into *out_dir*."""
+    out_dir.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        ["uv", "build", "--wheel", "--out-dir", str(out_dir)],
+        cwd=source_dir,
+        check=True,
+    )
+    wheels = list(out_dir.glob("*.whl"))
+    if not wheels:
+        raise RuntimeError(f"No wheel produced for {source_dir}")
+    return wheels[0]
+
 
 # ---------------------------------------------------------------------------
 # Modal application
@@ -76,74 +109,72 @@ app = modal.App("securebank-ai-backend")
 # Container image
 # ---------------------------------------------------------------------------
 #
-# Why the two-step local-package install?
-# ────────────────────────────────────────
-# ``lauren`` and ``lauren-ai`` live only in this monorepo — they are NOT
-# published to PyPI.  The backend's ``pyproject.toml`` lists both as regular
-# dependencies, so a naive ``pip install /backend`` would fail because pip
-# cannot find them on the package index.
+# Layer order maximises Modal cache hits:
+#   1. PyPI runtime deps          (pinned ranges — very stable)
+#   2. lauren-framework wheel     (changes rarely)
+#   3. lauren-ai wheel            (changes occasionally)
+#   4. backend wheel + main.py    (changes frequently — always rebuilt)
 #
-# Solution: install the two packages from their source trees **before** pip
-# processes the backend's dependency list.  Once they are registered in the
-# environment, pip recognises the constraints as satisfied and does not
-# attempt a PyPI lookup.  The final ``--no-deps`` flag makes this guarantee
-# explicit and avoids a redundant index query.
+# The backend wheel only bundles the ``app`` package (see pyproject.toml
+# ``[tool.setuptools.packages.find]``).  ``main.py`` is added as a separate
+# file and made importable via PYTHONPATH so Modal's entry-point works.
 #
-# Layer order is deliberately coarse-grained so Modal can maximise cache hits:
-#   1. Framework source  (changes rarely)
-#   2. lauren-ai source  (changes occasionally)
-#   3. PyPI runtime deps (pinned range, stable)
-#   4. Backend source    (changes frequently — always rebuilt)
+# ``--no-deps`` on the backend install is safe because every declared
+# dependency (lauren, lauren-ai, httpx, uvicorn, python-dotenv) is already
+# present from the layers above; pip skips the index lookup entirely.
 
-image = (
-    modal.Image.debian_slim(python_version="3.12")
-    
-    # ── 3. PyPI runtime dependencies ────────────────────────────────────
-    .pip_install(
-        "uv",
-        "httpx>=0.27",
-        "uvicorn[standard]>=0.29",
-        "python-dotenv>=1.0",
-    )
+if modal.is_local():
+    _dist = Path(tempfile.mkdtemp(prefix="modal-wheels-"))
+    atexit.register(shutil.rmtree, _dist, ignore_errors=True)
 
-    # ── 1. lauren-framework ─────────────────────────────────────────────
-    .add_local_dir(
-        str(FRAMEWORK_PATH),
-        "/opt/lauren-framework",
-        ignore=IGNORE_DIRS,
-        copy=True,
-    )
-    .run_commands("pip install --quiet /opt/lauren-framework")
+    _framework_whl = _build_wheel(FRAMEWORK_PATH, _dist / "framework")
+    _lauren_ai_whl = _build_wheel(LAUREN_AI_PATH, _dist / "lauren-ai")
+    _backend_whl   = _build_wheel(_HERE,          _dist / "backend")
 
-    # ── 2. lauren-ai ────────────────────────────────────────────────────
-    .add_local_dir(
-        str(LAUREN_AI_PATH),
-        "/opt/lauren-ai",
-        ignore=IGNORE_DIRS,
-        copy=True,
-    )
-    .run_commands("pip install --quiet '/opt/lauren-ai[openai]'")
+    image = (
+        modal.Image.debian_slim(python_version="3.12")
 
-    # ── 4. Backend application ──────────────────────────────────────────
-    # Exclude secrets and build artefacts; they must not reach the image.
-    .add_local_dir(
-        str(_HERE),
-        "/backend",
-        ignore=IGNORE_DIRS,
-        copy=True,
-    )
-    .run_commands(
-        # Install the `app` package.  --no-deps is safe here because every
-        # dependency (lauren, lauren-ai, httpx, uvicorn, python-dotenv) was
-        # installed in the layers above; pip skips the index lookup entirely.
-        "pip install --quiet --no-deps /backend",
-    )
+        # ── 1. PyPI runtime dependencies ─────────────────────────────────
+        .pip_install(
+            "httpx>=0.27",
+            "uvicorn[standard]>=0.29",
+            "python-dotenv>=1.0",
+        )
 
-    # ── 5. Make main.py importable at runtime ───────────────────────────
-    # main.py lives at /backend/main.py (top-level, not inside a package).
-    # Adding /backend to PYTHONPATH lets ``import main`` resolve correctly.
-    .env({"PYTHONPATH": "/backend"})
-)
+        # ── 2. lauren-framework ──────────────────────────────────────────
+        .add_local_file(
+            str(_framework_whl),
+            f"/opt/wheels/{_framework_whl.name}",
+            copy=True,
+        )
+        .run_commands(f"pip install --quiet /opt/wheels/{_framework_whl.name}")
+
+        # ── 3. lauren-ai ────────────────────────────────────────────────
+        .add_local_file(
+            str(_lauren_ai_whl),
+            f"/opt/wheels/{_lauren_ai_whl.name}",
+            copy=True,
+        )
+        .run_commands(f"pip install --quiet '/opt/wheels/{_lauren_ai_whl.name}[openai]'")
+
+        # ── 4. Backend application ───────────────────────────────────────
+        .add_local_file(
+            str(_backend_whl),
+            f"/opt/wheels/{_backend_whl.name}",
+            copy=True,
+        )
+        .add_local_file(str(_HERE / "main.py"), "/backend/main.py", copy=True)
+        .run_commands(
+            f"pip install --quiet --no-deps /opt/wheels/{_backend_whl.name}",
+        )
+
+        # ── 5. Make main.py importable at runtime ────────────────────────
+        .env({"PYTHONPATH": "/backend"})
+    )
+else:
+    # Inside the container the image is already baked; this branch is never
+    # used to build anything — it just satisfies the @app.function decorator.
+    image = modal.Image.debian_slim(python_version="3.12")
 
 # ---------------------------------------------------------------------------
 # ASGI function — serves all HTTP and WebSocket traffic
