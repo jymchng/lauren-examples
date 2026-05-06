@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from lauren import module
 
-from app.ai.active_agent_store import ActiveAgentStore
+from app.ai.tools.active_agent_store import ActiveAgentStore
 
 
 @module(

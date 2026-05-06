@@ -10,7 +10,7 @@ Re-applies @tool() to get its own TOOL_META and DI token (strict-inheritance rul
 from lauren_ai import ToolContext, tool
 
 from app.ai.agent_names import AUTH_CRM_AGENT_NAME
-from app.ai.handoff_tool import HandoffTo
+from app.ai.tools.handoff_tool import HandoffTo
 
 
 @tool()

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from lauren import module
 
-from app.ai.check_auth_tool import CheckAuthenticationTool
+from app.ai.tools.check_auth_tool import CheckAuthenticationTool
 
 
 @module(providers=[CheckAuthenticationTool], exports=[CheckAuthenticationTool])

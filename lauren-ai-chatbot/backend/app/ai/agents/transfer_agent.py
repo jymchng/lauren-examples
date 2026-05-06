@@ -16,10 +16,10 @@ import logging
 from lauren_ai import agent, use_tools
 
 from app.ai.agent_names import TRANSFER_AGENT_NAME
-from app.ai.approval_tool import ApprovalTool
-from app.ai.banking_tools import TransferFundsTool
-from app.ai.check_auth_tool import CheckAuthenticationTool
-from app.ai.handoff_tool import HandoffTo
+from app.ai.approval.approval_tool import ApprovalTool
+from app.ai.tools.banking_tools import TransferFundsTool
+from app.ai.tools.check_auth_tool import CheckAuthenticationTool
+from app.ai.tools.handoff_tool import HandoffTo
 
 _SYSTEM = """\
 You are the SecureBank Transfer Agent — a specialist that executes fund transfers \

@@ -33,7 +33,7 @@ from typing import ClassVar, Literal
 
 from lauren_ai import ToolContext, tool
 
-from app.ai.active_agent_store import ActiveAgentStore
+from app.ai.tools.active_agent_store import ActiveAgentStore
 from app.ws.event_forwarder import EventForwarder
 
 logger = logging.getLogger(__name__)

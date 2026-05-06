@@ -324,7 +324,7 @@ class TestBankingChatValidUsers:
         Regression: the second handoff (Transfer→CRM) was silently dropped
         because generate() only detected one level of handoff.
         """
-        from app.ai.active_agent_store import ActiveAgentStore
+        from app.ai.tools.active_agent_store import ActiveAgentStore
         from app.ai.agent_names import AUTH_CRM_AGENT_NAME as CRM_AGENT_NAME, TRANSFER_AGENT_NAME
 
         conv_id = "conv-twohop"

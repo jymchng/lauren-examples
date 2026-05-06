@@ -330,17 +330,17 @@ class TestBankingWiringE2E:
         assert signal_bus is module_bus
 
     def test_crm_agent_has_agent_meta(self):
-        from app.ai.auth_crm_agent import AuthenticatedCRMAgent
+        from app.ai.agents.auth_crm_agent import AuthenticatedCRMAgent
 
         assert hasattr(AuthenticatedCRMAgent, "__lauren_ai_agent__")
 
     def test_transfer_agent_has_agent_meta(self):
-        from app.ai.transfer_agent import BankTransferAgent
+        from app.ai.agents.transfer_agent import BankTransferAgent
 
         assert hasattr(BankTransferAgent, "__lauren_ai_agent__")
 
     def test_crm_agent_has_use_tools_meta(self):
-        from app.ai.auth_crm_agent import AuthenticatedCRMAgent
+        from app.ai.agents.auth_crm_agent import AuthenticatedCRMAgent
         from lauren_ai._agents import USE_TOOLS_META
 
         assert hasattr(AuthenticatedCRMAgent, USE_TOOLS_META)
@@ -359,7 +359,7 @@ class TestBankingWiringE2E:
         assert store is not None
 
     def test_check_auth_tool_has_tool_meta(self):
-        from app.ai.check_auth_tool import CheckAuthenticationTool
+        from app.ai.tools.check_auth_tool import CheckAuthenticationTool
         from lauren_ai._tools import TOOL_META
 
         assert hasattr(CheckAuthenticationTool, TOOL_META)
@@ -371,7 +371,7 @@ class TestModuleInjectsWiring:
     def test_transfer_and_auth_crm_runners_are_distinct_singletons(self, app):
         import asyncio
 
-        from app.ai.banking_delegation import AuthCRMRunner, TransferAgentRunner
+        from app.ai.agents.banking_delegation import AuthCRMRunner, TransferAgentRunner
         from lauren_ai import AgentRunner
 
         loop = asyncio.new_event_loop()
@@ -387,7 +387,7 @@ class TestModuleInjectsWiring:
     def test_crm_runner_is_not_transfer_runner_subtype(self, app):
         import asyncio
 
-        from app.ai.banking_delegation import AuthCRMRunner, TransferAgentRunner
+        from app.ai.agents.banking_delegation import AuthCRMRunner, TransferAgentRunner
 
         loop = asyncio.new_event_loop()
         try:
@@ -399,7 +399,7 @@ class TestModuleInjectsWiring:
     def test_transfer_runner_concrete_type_is_subclass(self, app):
         import asyncio
 
-        from app.ai.banking_delegation import TransferAgentRunner
+        from app.ai.agents.banking_delegation import TransferAgentRunner
 
         loop = asyncio.new_event_loop()
         try:

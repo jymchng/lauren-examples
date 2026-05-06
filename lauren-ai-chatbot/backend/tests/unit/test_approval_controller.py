@@ -11,8 +11,8 @@ import pytest
 os.environ.setdefault("PAYLOAD_SECRET", "test-secret-abc123")
 os.environ.setdefault("OPENROUTER_API_KEY", "dummy")
 
-from app.ai.approval_controller import ApprovalBody, ApprovalController
-from app.ai.approval_service import ApprovalService
+from app.ai.approval.approval_controller import ApprovalBody, ApprovalController
+from app.ai.approval.approval_service import ApprovalService
 from lauren.exceptions import RouteNotFoundError
 
 

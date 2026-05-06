@@ -13,8 +13,8 @@ import time
 from lauren_ai import AgentContext, AgentResponse, Completion, ToolResult, agent, use_tools
 
 from app.ai.agent_names import UNAUTH_CRM_AGENT_NAME
-from app.ai.check_auth_tool import CheckAuthenticationTool
-from app.ai.handoff_to_authenticated import HandoffToAuthenticatedCRM
+from app.ai.tools.check_auth_tool import CheckAuthenticationTool
+from app.ai.tools.handoff_to_authenticated import HandoffToAuthenticatedCRM
 
 _SYSTEM = """\
 You are the SecureBank Public Assistant — a friendly, informative AI that helps \

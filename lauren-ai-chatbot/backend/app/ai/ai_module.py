@@ -45,20 +45,20 @@ from lauren_ai import (
 )
 from lauren_ai._module import AgentModule, LLMService
 
-from app.ai.active_agent_module import ActiveAgentModule
-from app.ai.active_agent_store import ActiveAgentStore
-from app.ai.approval_module import ApprovalModule
-from app.ai.auth_crm_agent import AuthenticatedCRMAgent
-from app.ai.banking_delegation import AuthCRMRunner, DisputesAgentRunner, TransferAgentRunner, UnauthCRMRunner
-from app.ai.banking_tools import GetBalanceTool, GetTransactionHistoryTool
-from app.ai.check_auth_module import CheckAuthModule
-from app.ai.check_auth_tool import CheckAuthenticationTool
-from app.ai.handoff_tool import HandoffTo
-from app.ai.signals import signal_bus
-from app.ai.disputes_agent import DisputesAgent
-from app.ai.transfer_agent import BankTransferAgent
-from app.ai.unauth_crm_agent import UnauthenticatedCRMAgent
+from app.ai.agents.auth_crm_agent import AuthenticatedCRMAgent
+from app.ai.agents.banking_delegation import AuthCRMRunner, DisputesAgentRunner, TransferAgentRunner, UnauthCRMRunner
+from app.ai.agents.disputes_agent import DisputesAgent
+from app.ai.agents.transfer_agent import BankTransferAgent
+from app.ai.agents.unauth_crm_agent import UnauthenticatedCRMAgent
+from app.ai.approval.approval_module import ApprovalModule
 from app.ai.chat_banking_controller import BankingChatController
+from app.ai.signals import signal_bus
+from app.ai.tools.active_agent_module import ActiveAgentModule
+from app.ai.tools.active_agent_store import ActiveAgentStore
+from app.ai.tools.banking_tools import GetBalanceTool, GetTransactionHistoryTool
+from app.ai.tools.check_auth_module import CheckAuthModule
+from app.ai.tools.check_auth_tool import CheckAuthenticationTool
+from app.ai.tools.handoff_tool import HandoffTo
 from app.banking.banking_module import BankingModule
 from app.crypto.crypto_module import CryptoModule
 from app.ws.ws_module import WsModule
@@ -104,7 +104,7 @@ _UnauthCRMModule = AgentModule.for_root(
 
 _AuthCRMModule = AgentModule.for_root(
     agents=[AuthenticatedCRMAgent],
-    tools=[HandoffTo[BankTransferAgent, DisputesAgent, UnauthenticatedCRMAgent]],
+    tools=[HandoffTo[BankTransferAgent, DisputesAgent,]],
     imports=[LLMProvider, CheckAuthModule, BankingModule, WsModule, ActiveAgentModule],
     shared_tools=[CheckAuthenticationTool, GetBalanceTool, GetTransactionHistoryTool],
     signals=signal_bus,
@@ -114,7 +114,7 @@ _AuthCRMModule = AgentModule.for_root(
 
 _TransferModule = AgentModule.for_root(
     agents=[BankTransferAgent],
-    tools=[HandoffTo[AuthenticatedCRMAgent, DisputesAgent, UnauthenticatedCRMAgent]],
+    tools=[HandoffTo[AuthenticatedCRMAgent, DisputesAgent,]],
     imports=[LLMProvider, CheckAuthModule, BankingModule, ApprovalModule, WsModule, ActiveAgentModule],
     shared_tools=[CheckAuthenticationTool],
     signals=signal_bus,

@@ -13,9 +13,9 @@ import time
 from lauren_ai import AgentContext, AgentResponse, Completion, ToolResult, agent, use_tools
 
 from app.ai.agent_names import AUTH_CRM_AGENT_NAME
-from app.ai.banking_tools import GetBalanceTool, GetTransactionHistoryTool
-from app.ai.check_auth_tool import CheckAuthenticationTool
-from app.ai.handoff_tool import HandoffTo
+from app.ai.tools.banking_tools import GetBalanceTool, GetTransactionHistoryTool
+from app.ai.tools.check_auth_tool import CheckAuthenticationTool
+from app.ai.tools.handoff_tool import HandoffTo
 
 _SYSTEM = """\
 You are the SecureBank CRM Assistant — a friendly, professional AI banking agent \

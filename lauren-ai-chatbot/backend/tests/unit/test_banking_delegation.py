@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.ai.banking_delegation import AuthCRMRunner, DisputesAgentRunner, TransferAgentRunner, UnauthCRMRunner
+from app.ai.agents.banking_delegation import AuthCRMRunner, DisputesAgentRunner, TransferAgentRunner, UnauthCRMRunner
 from lauren_ai import AgentRunnerBase
 
 

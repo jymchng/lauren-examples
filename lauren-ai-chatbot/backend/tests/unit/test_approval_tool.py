@@ -9,8 +9,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.ai.approval_service import ApprovalService
-from app.ai.approval_tool import ApprovalTool
+from app.ai.approval.approval_service import ApprovalService
+from app.ai.approval.approval_tool import ApprovalTool
 
 
 # ---------------------------------------------------------------------------
@@ -211,7 +211,7 @@ class TestApprovalToolTimeout:
     @pytest.mark.asyncio
     async def test_timeout_returns_approval_timeout(self, monkeypatch):
         """Patch asyncio.wait_for to raise TimeoutError immediately."""
-        import app.ai.approval_tool as _mod
+        import app.ai.approval.approval_tool as _mod
 
         async def _fake_wait_for(coro, timeout):
             raise asyncio.TimeoutError
@@ -227,7 +227,7 @@ class TestApprovalToolTimeout:
 
     @pytest.mark.asyncio
     async def test_timeout_does_not_write_token(self, monkeypatch):
-        import app.ai.approval_tool as _mod
+        import app.ai.approval.approval_tool as _mod
 
         async def _fake_wait_for(coro, timeout):
             raise asyncio.TimeoutError

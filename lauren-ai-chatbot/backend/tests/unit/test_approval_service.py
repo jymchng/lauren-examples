@@ -7,7 +7,7 @@ import asyncio
 
 import pytest
 
-from app.ai.approval_service import ApprovalService
+from app.ai.approval.approval_service import ApprovalService
 
 
 # ---------------------------------------------------------------------------

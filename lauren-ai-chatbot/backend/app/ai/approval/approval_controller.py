@@ -16,7 +16,7 @@ from pydantic import BaseModel
 from lauren import Json, Request, controller, post, use_guards
 from lauren.exceptions import RouteNotFoundError
 
-from app.ai.approval_service import ApprovalService
+from app.ai.approval.approval_service import ApprovalService
 from app.crypto.signature_guard import SignatureGuard
 
 

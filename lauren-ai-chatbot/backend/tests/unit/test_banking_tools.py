@@ -15,7 +15,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from app.ai.banking_tools import (
+from app.ai.tools.banking_tools import (
     GetBalanceTool,
     GetTransactionHistoryTool,
     TransferFundsTool,

@@ -23,7 +23,7 @@ from uuid import uuid4
 
 from lauren_ai import ToolContext, tool
 
-from app.ai.approval_service import ApprovalService
+from app.ai.approval.approval_service import ApprovalService
 from app.ws.event_forwarder import EventForwarder
 
 

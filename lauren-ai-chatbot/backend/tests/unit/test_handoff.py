@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.ai.active_agent_store import ActiveAgentStore
+from app.ai.tools.active_agent_store import ActiveAgentStore
 from app.ai.agent_names import AUTH_CRM_AGENT_NAME as CRM_AGENT_NAME, TRANSFER_AGENT_NAME
 from app.ws.context import current_user_id
 
@@ -139,8 +139,8 @@ def _make_tool_ctx(
 class TestHandoffToTransfer:
     @pytest.mark.asyncio
     async def test_sets_transfer_agent_in_store(self):
-        from app.ai.handoff_tool import HandoffTo
-        from app.ai.transfer_agent import BankTransferAgent as BankingTransferAgent
+        from app.ai.tools.handoff_tool import HandoffTo
+        from app.ai.agents.transfer_agent import BankTransferAgent as BankingTransferAgent
 
         store = ActiveAgentStore()
         fwd = _FakeForwarder()
@@ -157,8 +157,8 @@ class TestHandoffToTransfer:
 
     @pytest.mark.asyncio
     async def test_emits_agent_handoff_event(self):
-        from app.ai.handoff_tool import HandoffTo
-        from app.ai.transfer_agent import BankTransferAgent as BankingTransferAgent
+        from app.ai.tools.handoff_tool import HandoffTo
+        from app.ai.agents.transfer_agent import BankTransferAgent as BankingTransferAgent
 
         store = ActiveAgentStore()
         fwd = _FakeForwarder()
@@ -179,8 +179,8 @@ class TestHandoffToTransfer:
     @pytest.mark.asyncio
     async def test_no_event_without_user_id(self):
         """Event is always sent; user_id="" when execution_context has no user."""
-        from app.ai.handoff_tool import HandoffTo
-        from app.ai.transfer_agent import BankTransferAgent as BankingTransferAgent
+        from app.ai.tools.handoff_tool import HandoffTo
+        from app.ai.agents.transfer_agent import BankTransferAgent as BankingTransferAgent
 
         store = ActiveAgentStore()
         fwd = _FakeForwarder()
@@ -198,8 +198,8 @@ class TestHandoffToTransfer:
 
     @pytest.mark.asyncio
     async def test_no_store_update_without_conversation_id(self):
-        from app.ai.handoff_tool import HandoffTo
-        from app.ai.transfer_agent import BankTransferAgent as BankingTransferAgent
+        from app.ai.tools.handoff_tool import HandoffTo
+        from app.ai.agents.transfer_agent import BankTransferAgent as BankingTransferAgent
 
         store = ActiveAgentStore()
         fwd = _FakeForwarder()
@@ -215,8 +215,8 @@ class TestHandoffToTransfer:
     @pytest.mark.asyncio
     async def test_invalid_to_agent_returns_error(self):
         """Passing an agent name not in _target_names returns an error dict."""
-        from app.ai.handoff_tool import HandoffTo
-        from app.ai.transfer_agent import BankTransferAgent as BankingTransferAgent
+        from app.ai.tools.handoff_tool import HandoffTo
+        from app.ai.agents.transfer_agent import BankTransferAgent as BankingTransferAgent
 
         store = ActiveAgentStore()
         fwd = _FakeForwarder()
@@ -240,8 +240,8 @@ class TestHandoffToTransfer:
 class TestHandoffBackToCRM:
     @pytest.mark.asyncio
     async def test_sets_store_to_crm(self):
-        from app.ai.handoff_tool import HandoffTo
-        from app.ai.auth_crm_agent import AuthenticatedCRMAgent as BankingCRMAgent
+        from app.ai.tools.handoff_tool import HandoffTo
+        from app.ai.agents.auth_crm_agent import AuthenticatedCRMAgent as BankingCRMAgent
 
         store = ActiveAgentStore()
         store.set("conv-1", TRANSFER_AGENT_NAME)
@@ -259,8 +259,8 @@ class TestHandoffBackToCRM:
 
     @pytest.mark.asyncio
     async def test_emits_reverse_handoff_event(self):
-        from app.ai.handoff_tool import HandoffTo
-        from app.ai.auth_crm_agent import AuthenticatedCRMAgent as BankingCRMAgent
+        from app.ai.tools.handoff_tool import HandoffTo
+        from app.ai.agents.auth_crm_agent import AuthenticatedCRMAgent as BankingCRMAgent
 
         store = ActiveAgentStore()
         store.set("conv-1", TRANSFER_AGENT_NAME)
@@ -281,8 +281,8 @@ class TestHandoffBackToCRM:
 
     @pytest.mark.asyncio
     async def test_to_crm_writes_summary_to_store(self):
-        from app.ai.handoff_tool import HandoffTo
-        from app.ai.auth_crm_agent import AuthenticatedCRMAgent as BankingCRMAgent
+        from app.ai.tools.handoff_tool import HandoffTo
+        from app.ai.agents.auth_crm_agent import AuthenticatedCRMAgent as BankingCRMAgent
 
         store = ActiveAgentStore()
         store.set("conv-1", TRANSFER_AGENT_NAME)
@@ -305,8 +305,8 @@ class TestHandoffBackToCRM:
 class TestHandoffToTransferSummary:
     @pytest.mark.asyncio
     async def test_to_transfer_writes_summary_to_store(self):
-        from app.ai.handoff_tool import HandoffTo
-        from app.ai.transfer_agent import BankTransferAgent as BankingTransferAgent
+        from app.ai.tools.handoff_tool import HandoffTo
+        from app.ai.agents.transfer_agent import BankTransferAgent as BankingTransferAgent
 
         store = ActiveAgentStore()
         fwd = _FakeForwarder()
@@ -321,8 +321,8 @@ class TestHandoffToTransferSummary:
 
     @pytest.mark.asyncio
     async def test_no_summary_without_conversation_id(self):
-        from app.ai.handoff_tool import HandoffTo
-        from app.ai.transfer_agent import BankTransferAgent as BankingTransferAgent
+        from app.ai.tools.handoff_tool import HandoffTo
+        from app.ai.agents.transfer_agent import BankTransferAgent as BankingTransferAgent
 
         store = ActiveAgentStore()
         fwd = _FakeForwarder()
@@ -343,33 +343,33 @@ class TestHandoffToTransferSummary:
 
 class TestHandoffToClassGetitem:
     def test_same_subscript_returns_cached_class(self):
-        from app.ai.handoff_tool import HandoffTo
-        from app.ai.auth_crm_agent import AuthenticatedCRMAgent as BankingCRMAgent
+        from app.ai.tools.handoff_tool import HandoffTo
+        from app.ai.agents.auth_crm_agent import AuthenticatedCRMAgent as BankingCRMAgent
 
         cls_a = HandoffTo[BankingCRMAgent]
         cls_b = HandoffTo[BankingCRMAgent]
         assert cls_a is cls_b
 
     def test_different_subscripts_are_distinct_classes(self):
-        from app.ai.handoff_tool import HandoffTo
-        from app.ai.auth_crm_agent import AuthenticatedCRMAgent as BankingCRMAgent
-        from app.ai.transfer_agent import BankTransferAgent as BankingTransferAgent
+        from app.ai.tools.handoff_tool import HandoffTo
+        from app.ai.agents.auth_crm_agent import AuthenticatedCRMAgent as BankingCRMAgent
+        from app.ai.agents.transfer_agent import BankTransferAgent as BankingTransferAgent
 
         cls_crm = HandoffTo[BankingCRMAgent]
         cls_transfer = HandoffTo[BankingTransferAgent]
         assert cls_crm is not cls_transfer
 
     def test_single_target_has_correct_target_names(self):
-        from app.ai.handoff_tool import HandoffTo
-        from app.ai.transfer_agent import BankTransferAgent as BankingTransferAgent
+        from app.ai.tools.handoff_tool import HandoffTo
+        from app.ai.agents.transfer_agent import BankTransferAgent as BankingTransferAgent
 
         cls = HandoffTo[BankingTransferAgent]
         assert cls._target_names == (TRANSFER_AGENT_NAME,)
 
     def test_multi_target_has_all_names(self):
-        from app.ai.handoff_tool import HandoffTo
-        from app.ai.auth_crm_agent import AuthenticatedCRMAgent as BankingCRMAgent
-        from app.ai.transfer_agent import BankTransferAgent as BankingTransferAgent
+        from app.ai.tools.handoff_tool import HandoffTo
+        from app.ai.agents.auth_crm_agent import AuthenticatedCRMAgent as BankingCRMAgent
+        from app.ai.agents.transfer_agent import BankTransferAgent as BankingTransferAgent
 
         cls = HandoffTo[BankingCRMAgent, BankingTransferAgent]
         assert CRM_AGENT_NAME in cls._target_names
@@ -378,9 +378,9 @@ class TestHandoffToClassGetitem:
 
     @pytest.mark.asyncio
     async def test_multi_target_can_handoff_to_either(self):
-        from app.ai.handoff_tool import HandoffTo
-        from app.ai.auth_crm_agent import AuthenticatedCRMAgent as BankingCRMAgent
-        from app.ai.transfer_agent import BankTransferAgent as BankingTransferAgent
+        from app.ai.tools.handoff_tool import HandoffTo
+        from app.ai.agents.auth_crm_agent import AuthenticatedCRMAgent as BankingCRMAgent
+        from app.ai.agents.transfer_agent import BankTransferAgent as BankingTransferAgent
 
         store = ActiveAgentStore()
         fwd = _FakeForwarder()
@@ -406,8 +406,8 @@ class TestHandoffToClassGetitem:
 
     @pytest.mark.asyncio
     async def test_invalid_agent_returns_error_without_side_effects(self):
-        from app.ai.handoff_tool import HandoffTo
-        from app.ai.auth_crm_agent import AuthenticatedCRMAgent as BankingCRMAgent
+        from app.ai.tools.handoff_tool import HandoffTo
+        from app.ai.agents.auth_crm_agent import AuthenticatedCRMAgent as BankingCRMAgent
 
         store = ActiveAgentStore()
         fwd = _FakeForwarder()

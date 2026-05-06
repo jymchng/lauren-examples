@@ -10,7 +10,7 @@ from app.ws.ws_module import WsModule
 
 
 from app.ai.ai_module import AIModule
-from app.ai.approval_module import ApprovalModule
+from app.ai.approval.approval_module import ApprovalModule
 from app.banking.banking_module import BankingModule
 from app.metrics.metrics_module import MetricsModule
 

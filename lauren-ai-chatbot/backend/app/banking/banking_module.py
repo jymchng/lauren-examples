@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from lauren import module, use_value
 
-from app.ai.banking_tools import GetBalanceTool, GetTransactionHistoryTool
+from app.ai.tools.banking_tools import GetBalanceTool, GetTransactionHistoryTool
 from app.banking.bank_db import BankDatabase
 from app.banking.banking_controller import BankingController
 

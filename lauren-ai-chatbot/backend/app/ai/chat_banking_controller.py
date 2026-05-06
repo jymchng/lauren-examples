@@ -30,13 +30,13 @@ from __future__ import annotations
 from lauren import EventStream, Json, ServerSentEvent, controller, post, use_guards
 from lauren.types import ExecutionContext
 
-from app.ai.active_agent_store import ActiveAgentStore
 from app.ai.agent_names import AUTH_CRM_AGENT_NAME, DISPUTES_AGENT_NAME, TRANSFER_AGENT_NAME, UNAUTH_CRM_AGENT_NAME
-from app.ai.auth_crm_agent import AuthenticatedCRMAgent
-from app.ai.banking_delegation import AuthCRMRunner, DisputesAgentRunner, TransferAgentRunner, UnauthCRMRunner
-from app.ai.disputes_agent import DisputesAgent
-from app.ai.transfer_agent import BankTransferAgent
-from app.ai.unauth_crm_agent import UnauthenticatedCRMAgent
+from app.ai.agents.auth_crm_agent import AuthenticatedCRMAgent
+from app.ai.agents.banking_delegation import AuthCRMRunner, DisputesAgentRunner, TransferAgentRunner, UnauthCRMRunner
+from app.ai.agents.disputes_agent import DisputesAgent
+from app.ai.agents.transfer_agent import BankTransferAgent
+from app.ai.agents.unauth_crm_agent import UnauthenticatedCRMAgent
+from app.ai.tools.active_agent_store import ActiveAgentStore
 from app.banking.bank_db import BankDatabase
 from app.ai.chat_schemas import ChatRequest
 from app.crypto.authenticated_user_guard import AuthenticatedUserGuard
