@@ -76,10 +76,10 @@ _conversation_store = InMemoryConversationStore()
 
 # ── 3. Agent + tool wiring via two AgentModule calls ────────────────────────
 #
-# The Transfer Agent module uses ``injects=[TransferAgentRunner]`` so its
+# The Transfer Agent module uses ``runner=TransferAgentRunner`` so its
 # runner is registered under a distinct DI token.  This lets
 # ``DelegateToBankingTransfer`` inject ``TransferAgentRunner`` without
-# creating a cycle with the CRM ``AgentRunner``.
+# ambiguity with the CRM ``CRMAgentRunner``.
 
 _TransferAgentModule = AgentModule.for_root(
     agents=[BankingTransferAgent],
@@ -91,7 +91,7 @@ _TransferAgentModule = AgentModule.for_root(
     imports=[LLMProvider, BankingModule, ApprovalModule, WsModule, ActiveAgentModule],
     signals=signal_bus,
     conversation_store=_conversation_store,
-    injects=[TransferAgentRunner],  # Distinct runner token for the Transfer Agent
+    runner=TransferAgentRunner,  # Distinct runner token for the Transfer Agent
 )
 
 # The CRM Agent module imports _TransferAgentModule so that
@@ -106,7 +106,7 @@ _CRMAgentModule = AgentModule.for_root(
     imports=[LLMProvider, _TransferAgentModule, BankingModule, WsModule, ActiveAgentModule],
     signals=signal_bus,
     conversation_store=_conversation_store,
-    injects=[CRMAgentRunner],  # Distinct runner token for the CRM Agent
+    runner=CRMAgentRunner,  # Distinct runner token for the CRM Agent
 )
 
 # ── 4. CostTracker — accumulates token costs from ModelCallComplete signals ──

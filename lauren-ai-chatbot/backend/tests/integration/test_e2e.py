@@ -366,7 +366,7 @@ class TestBankingWiringE2E:
 
 
 class TestModuleInjectsWiring:
-    """Verify injects=[TransferAgentRunner] produces independent DI tokens."""
+    """Verify runner=TransferAgentRunner produces independent DI tokens."""
 
     def test_transfer_and_crm_runners_are_distinct_singletons(self, app):
         import asyncio
@@ -417,5 +417,5 @@ class TestModuleInjectsWiring:
         from app.ai import ai_module
 
         src = inspect.getsource(ai_module)
-        assert "injects=[TransferAgentRunner]" in src
+        assert "runner=TransferAgentRunner" in src
         assert "runner_class=" not in src

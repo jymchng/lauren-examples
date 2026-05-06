@@ -80,6 +80,7 @@ class HandoffBackTo(Generic[_GenericAgentType]):
                 self._store.reset(conversation_id)
             else:
                 self._store.set(conversation_id, to_name)
+            self._store.set_pending_summary(conversation_id, summary)
 
         await self._forwarder.send_to_user(
             user_id,

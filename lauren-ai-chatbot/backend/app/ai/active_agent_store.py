@@ -21,6 +21,7 @@ class ActiveAgentStore:
 
     def __init__(self) -> None:
         self._store: dict[str, str] = {}
+        self._pending_summary: dict[str, str] = {}
 
     def get(self, conversation_id: str, default: str) -> str:
         """Return the active agent name for *conversation_id*, or *default*."""
@@ -33,3 +34,11 @@ class ActiveAgentStore:
     def reset(self, conversation_id: str) -> None:
         """Remove the routing entry, reverting to the default agent."""
         self._store.pop(conversation_id, None)
+
+    def set_pending_summary(self, conversation_id: str, summary: str) -> None:
+        """Store *summary* to be consumed once by the controller on the next handoff."""
+        self._pending_summary[conversation_id] = summary
+
+    def pop_pending_summary(self, conversation_id: str) -> str:
+        """Return and clear the pending summary, or '' if none was set."""
+        return self._pending_summary.pop(conversation_id, "")

@@ -317,3 +317,61 @@ class TestBankingChatValidUsers:
             resp = await client.post("/api/banking/chat", content=body, headers=_signed(body))
 
         assert "x-response-time" in resp.headers
+
+    @pytest.mark.asyncio
+    async def test_two_hop_handoff_crm_response_not_lost(self, client):
+        """CRM→Transfer→CRM: three token batches, two breaks, one done (last).
+
+        Regression: the second handoff (Transfer→CRM) was silently dropped
+        because generate() only detected one level of handoff.
+        """
+        from app.ai.active_agent_store import ActiveAgentStore
+        from app.ai.agent_names import CRM_AGENT_NAME, TRANSFER_AGENT_NAME
+
+        conv_id = "conv-twohop"
+        body = _body(user_id="alice", content="Transfer $100 to bob", conversation_id=conv_id)
+
+        # Simulate get() returning the sequence of active agents.
+        # `active` is looked up once before the loop, then after each run:
+        #   call 1: before loop → CRM
+        #   call 2: after CRM runs → Transfer (handoff detected)
+        #   call 3: after Transfer runs → CRM (handoff back detected)
+        #   call 4: after CRM 2nd run → CRM (no change — loop exits)
+        get_seq = [
+            CRM_AGENT_NAME,
+            TRANSFER_AGENT_NAME,
+            CRM_AGENT_NAME,
+            CRM_AGENT_NAME,
+        ]
+        get_iter = iter(get_seq)
+        call_count = 0
+
+        async def mock_run(agent, prompt, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            m = AsyncMock()
+            if call_count == 1:
+                m.content = "Handing you to Transfer Agent."
+            elif call_count == 2:
+                m.content = "Transfer complete. $100 sent to Bob."
+            else:
+                m.content = "Transfer confirmed. Anything else I can help with?"
+            return m
+
+        with (
+            patch.object(ActiveAgentStore, "get", side_effect=lambda *_: next(get_iter)),
+            patch.object(ActiveAgentStore, "pop_pending_summary", return_value="Transfer of $100 to Bob done"),
+            patch("lauren_ai._agents._runner.AgentRunnerBase.run", side_effect=mock_run),
+        ):
+            resp = await client.post("/api/banking/chat", content=body, headers=_signed(body))
+
+        events = _parse_sse(resp.content)
+        token_data = "".join(e["data"] for e in events if e.get("event") == "token")
+        break_events = [e for e in events if e.get("event") == "break"]
+        done_events = [e for e in events if e.get("event") == "done"]
+
+        assert "Transfer confirmed" in token_data      # CRM's third response is present
+        assert len(break_events) == 2                  # two agent switches emitted
+        assert len(done_events) == 1                   # exactly one done
+        assert events[-1]["event"] == "done"           # done is always last
+        assert call_count == 3                         # all three agents ran

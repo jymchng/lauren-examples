@@ -83,6 +83,7 @@ class BankingChatController:
 
         Event types emitted:
         - ``token``  — text chunk from the model
+        - ``break``  — agent handoff; data is the new active agent name
         - ``done``   — end of stream
         - ``error``  — error message
         """
@@ -144,43 +145,50 @@ class BankingChatController:
             try:
                 conv_id = body.conversation_id
                 chunk_size = 40
+                max_handoffs = 8  # safety: prevent runaway agent loops
 
-                # Route to the active agent for this conversation.
-                active_before = self._active_agent_store.get(conv_id, CRM_AGENT_NAME)
-                agent, runner = _resolve_agent(active_before)
+                active = self._active_agent_store.get(conv_id, CRM_AGENT_NAME)
+                prompt = full_prompt  # first run uses the original user message
+                handoffs = 0
 
-                # Each agent uses a namespaced conversation ID so that tool
-                # calls from one agent never appear in the other agent's
-                # history. The plain conv_id stays in metadata so the
-                # HandoffBackTo tool can key ActiveAgentStore correctly.
-                response = await runner.run(
-                    agent,
-                    full_prompt,
-                    conversation_id=f"{conv_id}:{active_before}",
-                    execution_context=exec_ctx,
-                    metadata={"conversation_id": conv_id},
-                )
-                content = response.content or ""
-                for i in range(0, len(content), chunk_size):
-                    yield ServerSentEvent(event="token", data=content[i : i + chunk_size])
+                while True:
+                    agent, runner = _resolve_agent(active)
 
-                # If a handoff occurred mid-turn, forward the triggering message
-                # to the newly active agent so it can respond immediately rather
-                # than waiting for the next user turn.
-                active_after = self._active_agent_store.get(conv_id, CRM_AGENT_NAME)
-                if active_after != active_before:
-                    yield ServerSentEvent(event="break", data=active_after)
-                    new_agent, new_runner = _resolve_agent(active_after)
-                    response2 = await new_runner.run(
-                        new_agent,
-                        full_prompt,
-                        conversation_id=f"{conv_id}:{active_after}",
+                    # Each agent uses a namespaced conversation ID so that tool
+                    # calls from one agent never appear in the other agent's
+                    # history. The plain conv_id stays in metadata so the
+                    # HandoffBackTo tool can key ActiveAgentStore correctly.
+                    response = await runner.run(
+                        agent,
+                        prompt,
+                        conversation_id=f"{conv_id}:{active}",
                         execution_context=exec_ctx,
                         metadata={"conversation_id": conv_id},
                     )
-                    content2 = response2.content or ""
-                    for i in range(0, len(content2), chunk_size):
-                        yield ServerSentEvent(event="token", data=content2[i : i + chunk_size])
+                    content = response.content or ""
+                    for i in range(0, len(content), chunk_size):
+                        yield ServerSentEvent(event="token", data=content[i : i + chunk_size])
+
+                    new_active = self._active_agent_store.get(conv_id, CRM_AGENT_NAME)
+                    if new_active == active or handoffs >= max_handoffs:
+                        break  # no handoff occurred, or safety limit reached
+
+                    handoffs += 1
+                    summary = self._active_agent_store.pop_pending_summary(conv_id)
+                    yield ServerSentEvent(event="break", data=new_active)
+
+                    # Give the receiving agent context about what the previous agent
+                    # accomplished. Re-sending full_prompt would cause CRM to see the
+                    # transfer request again and try to re-initiate it.
+                    if summary:
+                        prompt = (
+                            auth_prefix
+                            + f"[HANDOFF from {active}]: {summary}\n\n"
+                            + f"[ORIGINAL REQUEST]: {raw_message}"
+                        )
+                    else:
+                        prompt = full_prompt
+                    active = new_active
 
                 yield ServerSentEvent(event="done", data="")
             except Exception as exc:

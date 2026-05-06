@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 class TransferAgentRunner(AgentRunnerBase):
     """Distinct DI token for the Transfer Agent's runner.
 
-    Passed via ``injects=[TransferAgentRunner]`` to ``AgentModule.for_root()``
+    Passed via ``runner=TransferAgentRunner`` to ``AgentModule.for_root()``
     so that ``DelegateToBankingTransfer`` can inject it by concrete type,
     avoiding ambiguity with the CRM ``AgentRunner``.
     """
@@ -43,7 +43,7 @@ class TransferAgentRunner(AgentRunnerBase):
 class CRMAgentRunner(AgentRunnerBase):
     """Distinct DI token for the CRM Agent's runner.
 
-    Passed via ``injects=[CRMAgentRunner]`` to ``AgentModule.for_root()``
+    Passed via ``runner=CRMAgentRunner`` to ``AgentModule.for_root()``
     so that ``BankingChatController`` can inject the CRM runner by concrete type.
     """
 

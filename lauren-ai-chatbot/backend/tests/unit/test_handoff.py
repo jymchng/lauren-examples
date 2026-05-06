@@ -47,6 +47,23 @@ class TestActiveAgentStore:
         store.set("conv-1", CRM_AGENT_NAME)
         assert store.get("conv-1", "fallback") == CRM_AGENT_NAME
 
+    def test_pop_pending_summary_returns_and_clears(self):
+        store = ActiveAgentStore()
+        store.set_pending_summary("conv-1", "Transfer done")
+        assert store.pop_pending_summary("conv-1") == "Transfer done"
+        assert store.pop_pending_summary("conv-1") == ""  # consumed
+
+    def test_pop_pending_summary_missing_key_returns_empty(self):
+        store = ActiveAgentStore()
+        assert store.pop_pending_summary("nonexistent") == ""
+
+    def test_pending_summary_independent_per_conversation(self):
+        store = ActiveAgentStore()
+        store.set_pending_summary("conv-a", "Summary A")
+        store.set_pending_summary("conv-b", "Summary B")
+        assert store.pop_pending_summary("conv-a") == "Summary A"
+        assert store.pop_pending_summary("conv-b") == "Summary B"
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -226,3 +243,54 @@ class TestHandoffBackToCRM:
         assert payload["type"] == "agent_handoff"
         assert payload["to_agent"] == CRM_AGENT_NAME
         assert payload["summary"] == "Done"
+
+    @pytest.mark.asyncio
+    async def test_to_crm_writes_summary_to_store(self):
+        from app.ai.handoff_tool import HandoffBackTo
+
+        tok = current_user_id.set("alice")
+        try:
+            store = ActiveAgentStore()
+            store.set("conv-1", TRANSFER_AGENT_NAME)
+            fwd = _FakeForwarder()
+            tool = HandoffBackTo(active_agent_store=store, event_forwarder=fwd)
+            await tool.run(
+                _make_tool_ctx("conv-1", TRANSFER_AGENT_NAME),
+                summary="Transfer of $100 to Bob completed",
+            )
+        finally:
+            current_user_id.reset(tok)
+
+        assert store.pop_pending_summary("conv-1") == "Transfer of $100 to Bob completed"
+
+
+# ---------------------------------------------------------------------------
+# HandoffBackTo — CRM → Transfer direction: summary written to store
+# ---------------------------------------------------------------------------
+
+
+class TestHandoffToTransferSummary:
+    @pytest.mark.asyncio
+    async def test_to_transfer_writes_summary_to_store(self):
+        from app.ai.handoff_tool import HandoffBackTo
+
+        store = ActiveAgentStore()
+        fwd = _FakeForwarder()
+        tool = HandoffBackTo(active_agent_store=store, event_forwarder=fwd)
+        await tool.run(
+            _make_tool_ctx("conv-1", CRM_AGENT_NAME, user_id="alice"),
+            summary="Customer wants to transfer $50 to charlie",
+        )
+
+        assert store.pop_pending_summary("conv-1") == "Customer wants to transfer $50 to charlie"
+
+    @pytest.mark.asyncio
+    async def test_no_summary_without_conversation_id(self):
+        from app.ai.handoff_tool import HandoffBackTo
+
+        store = ActiveAgentStore()
+        fwd = _FakeForwarder()
+        tool = HandoffBackTo(active_agent_store=store, event_forwarder=fwd)
+        await tool.run(_make_tool_ctx("", CRM_AGENT_NAME, user_id="alice"), summary="ignored")
+
+        assert store.pop_pending_summary("") == ""
