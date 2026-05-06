@@ -31,7 +31,9 @@ class TestUnauthenticatedCRMAgent:
         assert "auth" in meta.system.lower() or "log in" in meta.system.lower()
 
     def test_has_use_tools_meta(self):
-        assert hasattr(UnauthenticatedCRMAgent, "__lauren_ai_use_tools__") or hasattr(UnauthenticatedCRMAgent, "__lauren_ai_agent__")
+        assert hasattr(UnauthenticatedCRMAgent, "__lauren_ai_use_tools__") or hasattr(
+            UnauthenticatedCRMAgent, "__lauren_ai_agent__"
+        )
 
 
 class TestAuthenticatedCRMAgent:
@@ -55,7 +57,9 @@ class TestAuthenticatedCRMAgent:
         assert "BANKING_AUTH" in meta.system or "identity" in meta.system.lower()
 
     def test_has_use_tools_meta(self):
-        assert hasattr(AuthenticatedCRMAgent, "__lauren_ai_use_tools__") or hasattr(AuthenticatedCRMAgent, "__lauren_ai_agent__")
+        assert hasattr(AuthenticatedCRMAgent, "__lauren_ai_use_tools__") or hasattr(
+            AuthenticatedCRMAgent, "__lauren_ai_agent__"
+        )
 
 
 class TestBankTransferAgent:
@@ -75,7 +79,9 @@ class TestBankTransferAgent:
         assert "transfer" in meta.system.lower() or "bank" in meta.system.lower()
 
     def test_has_use_tools_meta(self):
-        assert hasattr(BankTransferAgent, "__lauren_ai_use_tools__") or hasattr(BankTransferAgent, "__lauren_ai_agent__")
+        assert hasattr(BankTransferAgent, "__lauren_ai_use_tools__") or hasattr(
+            BankTransferAgent, "__lauren_ai_agent__"
+        )
 
 
 class TestDisputesAgent:
@@ -235,9 +241,7 @@ class TestUnauthCRMCannotReachTransferAgent:
         tools_meta = getattr(UnauthenticatedCRMAgent, "__lauren_ai_use_tools__", [])
         for tool_cls in tools_meta:
             target_names = getattr(tool_cls, "_target_names", ())
-            assert TRANSFER_AGENT_NAME not in target_names, (
-                f"{tool_cls} exposes a path to {TRANSFER_AGENT_NAME}"
-            )
+            assert TRANSFER_AGENT_NAME not in target_names, f"{tool_cls} exposes a path to {TRANSFER_AGENT_NAME}"
 
 
 class TestBankingToolMetas:

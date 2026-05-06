@@ -74,13 +74,13 @@ class BankingChatController:
         self._db = db
         self._active_agent_store = active_agent_store
         self._agent_registry: dict[str, tuple] = {
-            UNAUTH_CRM_AGENT_NAME: (unauth_agent,   unauth_runner),
-            AUTH_CRM_AGENT_NAME:   (auth_agent,     auth_runner),
-            TRANSFER_AGENT_NAME:   (transfer_agent, transfer_runner),
-            DISPUTES_AGENT_NAME:   (disputes_agent, disputes_runner),
+            UNAUTH_CRM_AGENT_NAME: (unauth_agent, unauth_runner),
+            AUTH_CRM_AGENT_NAME: (auth_agent, auth_runner),
+            TRANSFER_AGENT_NAME: (transfer_agent, transfer_runner),
+            DISPUTES_AGENT_NAME: (disputes_agent, disputes_runner),
         }
         self._default_unauth = (unauth_agent, unauth_runner)
-        self._default_auth   = (auth_agent,   auth_runner)
+        self._default_auth = (auth_agent, auth_runner)
 
     @use_guards(AuthenticatedUserGuard)
     @post("/chat")
@@ -113,17 +113,16 @@ class BankingChatController:
 
                 return EventStream(_not_found())
 
-            request.state.user_id    = account.user_id
-            request.state.user_name  = account.name
+            request.state.user_id = account.user_id
+            request.state.user_name = account.name
             request.state.account_id = account.account_id
-            auth_prefix   = (
-                f"[BANKING_AUTH: user_id={account.user_id} | name={account.name}"
-                f" | account={account.account_id}]\n\n"
+            auth_prefix = (
+                f"[BANKING_AUTH: user_id={account.user_id} | name={account.name} | account={account.account_id}]\n\n"
             )
             default_agent = AUTH_CRM_AGENT_NAME
         else:
-            account       = None
-            auth_prefix   = ""
+            account = None
+            auth_prefix = ""
             default_agent = UNAUTH_CRM_AGENT_NAME
 
         user_messages = [m for m in body.messages if m.role == "user"]

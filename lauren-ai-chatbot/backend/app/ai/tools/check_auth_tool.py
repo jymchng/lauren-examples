@@ -23,11 +23,7 @@ class CheckAuthenticationTool:
     """
 
     async def run(self, ctx: ToolContext) -> dict:
-        if (
-            ctx.execution_context
-            and ctx.execution_context.request
-            and ctx.execution_context.request.state
-        ):
+        if ctx.execution_context and ctx.execution_context.request and ctx.execution_context.request.state:
             uid = ctx.execution_context.request.state.get("user_id")
             name = ctx.execution_context.request.state.get("user_name")
             if uid:

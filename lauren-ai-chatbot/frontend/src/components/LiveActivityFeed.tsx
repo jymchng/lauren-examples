@@ -156,11 +156,12 @@ export function LiveActivityFeed({
   entries,
   connected,
 }: LiveActivityFeedProps) {
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll to the latest entry
+  // Scroll the feed's own container — never the sidebar
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const el = listRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
   }, [entries.length]);
 
   const visibleEntries = entries
@@ -197,7 +198,7 @@ export function LiveActivityFeed({
       </div>
 
       {/* Event list */}
-      <div className="max-h-40 overflow-y-auto space-y-0.5">
+      <div ref={listRef} className="max-h-40 overflow-y-auto space-y-0.5">
         {visibleEntries.length === 0 ? (
           <p className="text-[11px] text-muted-foreground italic py-1">
             {connected ? "Waiting for activity…" : "Connect to see live events"}
@@ -207,7 +208,6 @@ export function LiveActivityFeed({
             <EventRow key={entry.id} entry={entry} />
           ))
         )}
-        <div ref={bottomRef} />
       </div>
     </div>
   );

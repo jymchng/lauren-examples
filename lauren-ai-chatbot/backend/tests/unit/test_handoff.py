@@ -84,6 +84,7 @@ def _make_agent_context(conversation_id: str = "conv-1", agent_name: str = CRM_A
 
     class _AgentClass:
         from lauren_ai._agents import AGENT_META as _AGENT_META
+
         __name__ = agent_name
 
     _AgentClass.__lauren_ai_agent__ = _Meta()
@@ -95,6 +96,7 @@ def _make_agent_context(conversation_id: str = "conv-1", agent_name: str = CRM_A
         @property
         def agent_name(self) -> str:
             from lauren_ai._agents import AGENT_META
+
             meta = getattr(self.agent_class, AGENT_META, None)
             if meta and meta.name:
                 return meta.name
@@ -384,9 +386,7 @@ class TestHandoffToClassGetitem:
 
         store = ActiveAgentStore()
         fwd = _FakeForwarder()
-        tool = HandoffTo[BankingCRMAgent, BankingTransferAgent](
-            active_agent_store=store, event_forwarder=fwd
-        )
+        tool = HandoffTo[BankingCRMAgent, BankingTransferAgent](active_agent_store=store, event_forwarder=fwd)
 
         result = await tool.run(
             _make_tool_ctx("conv-1", CRM_AGENT_NAME, user_id="alice"),

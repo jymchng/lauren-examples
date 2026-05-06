@@ -82,7 +82,7 @@ LLMProvider = LLMModule.for_root(_llm_config)
 # history to every agent, causing agents to re-read prior handoff summaries as
 # instructions and trigger the wrong HandoffTo call.
 
-_unauth_store   = InMemoryConversationStore()
+_unauth_store = InMemoryConversationStore()
 _auth_crm_store = InMemoryConversationStore()
 _transfer_store = InMemoryConversationStore()
 _disputes_store = InMemoryConversationStore()
@@ -104,7 +104,7 @@ _UnauthCRMModule = AgentModule.for_root(
 
 _AuthCRMModule = AgentModule.for_root(
     agents=[AuthenticatedCRMAgent],
-    tools=[HandoffTo[BankTransferAgent, DisputesAgent,]],
+    tools=[HandoffTo[BankTransferAgent, DisputesAgent]],
     imports=[LLMProvider, CheckAuthModule, BankingModule, WsModule, ActiveAgentModule],
     shared_tools=[CheckAuthenticationTool, GetBalanceTool, GetTransactionHistoryTool],
     signals=signal_bus,
@@ -114,7 +114,7 @@ _AuthCRMModule = AgentModule.for_root(
 
 _TransferModule = AgentModule.for_root(
     agents=[BankTransferAgent],
-    tools=[HandoffTo[AuthenticatedCRMAgent, DisputesAgent,]],
+    tools=[HandoffTo[AuthenticatedCRMAgent, DisputesAgent]],
     imports=[LLMProvider, CheckAuthModule, BankingModule, ApprovalModule, WsModule, ActiveAgentModule],
     shared_tools=[CheckAuthenticationTool],
     signals=signal_bus,

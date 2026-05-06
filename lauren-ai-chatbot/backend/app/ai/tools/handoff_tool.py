@@ -42,6 +42,7 @@ logger = logging.getLogger(__name__)
 def _agent_display_name(agent_cls: type) -> str:
     """Return the display name from an @agent()-decorated class."""
     from lauren_ai._agents import AGENT_META  # lazy import — avoids cycle
+
     meta = getattr(agent_cls, AGENT_META, None)
     return meta.name if (meta and meta.name) else agent_cls.__name__
 
@@ -88,13 +89,18 @@ class HandoffTo:
         async def run(self, ctx: ToolContext, to_agent: AgentChoice, summary: str) -> dict:
             return await self._run_handoff(ctx, to_agent, summary)
 
-        new_cls = type(cls.__name__, (cls,), {
-            "__doc__": cls.__doc__,
-            "run": run,
-            "_target_names": names,
-        })
+        new_cls = type(
+            cls.__name__,
+            (cls,),
+            {
+                "__doc__": cls.__doc__,
+                "run": run,
+                "_target_names": names,
+            },
+        )
 
         from lauren_ai import tool as _tool  # avoid shadowing outer name
+
         new_cls = _tool()(new_cls)
 
         cls._cache[agents] = new_cls
@@ -103,17 +109,13 @@ class HandoffTo:
     async def _run_handoff(self, ctx: ToolContext, to_agent: str, summary: str) -> dict:
         """Shared implementation called by every specialised run()."""
         if to_agent not in self._target_names:
-            return {
-                "error": f"Unknown agent {to_agent!r}. Valid choices: {list(self._target_names)}"
-            }
+            return {"error": f"Unknown agent {to_agent!r}. Valid choices: {list(self._target_names)}"}
 
         conversation_id: str = ctx.agent_context.metadata.get("conversation_id", "")
         from_name: str = ctx.agent_context.agent_name
         user_id: str = (
             ctx.execution_context.request.state.get("user_id")
-            if ctx.execution_context
-            and ctx.execution_context.request
-            and ctx.execution_context.request.state
+            if ctx.execution_context and ctx.execution_context.request and ctx.execution_context.request.state
             else None
         ) or ""
 

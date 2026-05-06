@@ -30,9 +30,7 @@ class HandoffToAuthenticatedCRM(HandoffTo):
     async def run(self, ctx: ToolContext, summary: str) -> dict:
         uid = (
             ctx.execution_context.request.state.get("user_id")
-            if ctx.execution_context
-            and ctx.execution_context.request
-            and ctx.execution_context.request.state
+            if ctx.execution_context and ctx.execution_context.request and ctx.execution_context.request.state
             else None
         )
         if not uid:

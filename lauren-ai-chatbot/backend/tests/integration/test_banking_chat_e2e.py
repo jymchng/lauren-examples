@@ -369,8 +369,8 @@ class TestBankingChatValidUsers:
         break_events = [e for e in events if e.get("event") == "break"]
         done_events = [e for e in events if e.get("event") == "done"]
 
-        assert "Transfer confirmed" in token_data      # CRM's third response is present
-        assert len(break_events) == 2                  # two agent switches emitted
-        assert len(done_events) == 1                   # exactly one done
-        assert events[-1]["event"] == "done"           # done is always last
-        assert call_count == 3                         # all three agents ran
+        assert "Transfer confirmed" in token_data  # CRM's third response is present
+        assert len(break_events) == 2  # two agent switches emitted
+        assert len(done_events) == 1  # exactly one done
+        assert events[-1]["event"] == "done"  # done is always last
+        assert call_count == 3  # all three agents ran
