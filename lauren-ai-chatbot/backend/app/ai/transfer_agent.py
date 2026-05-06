@@ -1,7 +1,7 @@
-"""BankingTransferAgentEN — English-language back-office agent for fund transfers.
+"""BankTransferAgent — English-language back-office agent for fund transfers.
 
-Not directly accessible from the chat interface. Reached via the HandoffTo
-tool from BankingCRMAgentEN.
+Reached via HandoffTo from AuthenticatedCRMAgent.  Uses CheckAuthenticationTool
+to verify the session is still valid before executing transfers.
 
 Security contract
 -----------------
@@ -15,22 +15,25 @@ import logging
 
 from lauren_ai import agent, use_tools
 
-from app.ai.agent_names import TRANSFER_AGENT_NAME_EN
+from app.ai.agent_names import TRANSFER_AGENT_NAME
 from app.ai.approval_tool import ApprovalTool
 from app.ai.banking_tools import TransferFundsTool
+from app.ai.check_auth_tool import CheckAuthenticationTool
 from app.ai.handoff_tool import HandoffTo
 
 _SYSTEM = """\
-You are the SecureBank Transfer Agent (English) — a specialist that executes \
-fund transfers for verified customers.
+You are the SecureBank Transfer Agent — a specialist that executes fund transfers \
+for verified customers.
 
-You may be invoked via conversation handoff from the English CRM Agent.
+You are invoked via conversation handoff from the Authenticated CRM Agent.
 
 ══ CAPABILITIES ══════════════════════════════════════════════════════════════
-• ApprovalTool      — request explicit human approval; call ONLY after Step 1 is complete
-• TransferFundsTool — transfer funds (to_user, amount, optional description)
-• HandoffTo         — return the conversation to the English CRM Agent when done or \
-when the customer asks for something outside fund transfers
+• CheckAuthenticationTool — verify the session is still valid (call if in doubt)
+• ApprovalTool            — request explicit human approval; call ONLY after Step 1
+• TransferFundsTool       — transfer funds (to_user, amount, optional description)
+• HandoffTo               — return to "Banking CRM Agent (Authenticated)" when done \
+or when the customer asks for something outside fund transfers; \
+use "Banking CRM Agent (Public)" if CheckAuthenticationTool returns authenticated=false
 
 ══ MANDATORY WORKFLOW ════════════════════════════════════════════════════════
 STEP 1 — GATHER DETAILS (do this FIRST; do NOT call any tool yet)
@@ -49,7 +52,7 @@ STEP 3 — EXECUTE TRANSFER (only after ApprovalTool returns approved: true)
   • State the transaction ID, updated balance, and recipient name clearly.
 
 STEP 4 — RETURN TO CRM
-  • Call HandoffTo with to_agent set to the English CRM Agent and a brief summary.
+  • Call HandoffTo with to_agent set to "Banking CRM Agent (Authenticated)" and a brief summary.
 
 ══ IDENTITY RULES ════════════════════════════════════════════════════════════
 • The sender is ALWAYS the session-authenticated user shown in [BANKING_AUTH].
@@ -64,11 +67,7 @@ recipient name clearly.
 logger = logging.getLogger(__name__)
 
 
-@agent(name=TRANSFER_AGENT_NAME_EN, model=None, system=_SYSTEM, max_turns=10)
-@use_tools(ApprovalTool, TransferFundsTool, HandoffTo)
-class BankingTransferAgentEN:
-    """English-language transfer execution agent (reached via CRM handoff)."""
-
-
-# Backward-compatible alias.
-BankingTransferAgent = BankingTransferAgentEN
+@agent(name=TRANSFER_AGENT_NAME, model=None, system=_SYSTEM, max_turns=10)
+@use_tools(ApprovalTool, TransferFundsTool, CheckAuthenticationTool, HandoffTo)
+class BankTransferAgent:
+    """Transfer execution agent (reached via handoff from AuthenticatedCRMAgent)."""

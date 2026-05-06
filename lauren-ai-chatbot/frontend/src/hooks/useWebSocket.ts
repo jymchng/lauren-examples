@@ -76,33 +76,8 @@ export function useWebSocket({
     setConnected(false);
   }, []);
 
-  const connect = useCallback(
-    async (uid: string) => {
-      closeWs();
-
-      // 1. Fetch a short-lived WS token from our Next.js proxy
-      let token: string;
-      try {
-        const resp = await fetch("/api/banking/ws-token", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ user_id: uid }),
-        });
-        if (!resp.ok) {
-          console.warn("[WS] token fetch failed:", resp.status);
-          return;
-        }
-        const data = await resp.json();
-        token = data.token;
-        if (!token) return;
-      } catch (err) {
-        console.warn("[WS] token fetch error:", err);
-        return;
-      }
-
-      // 2. Open the WebSocket directly to the backend
-      // Prefer the build-time env var; fall back to the browser's current
-      // hostname (port 8000) so the hook works from any IP without a redeploy.
+  const openWs = useCallback(
+    (token: string) => {
       const wsBase =
         process.env.NEXT_PUBLIC_WS_URL ||
         (typeof window !== "undefined"
@@ -125,17 +100,53 @@ export function useWebSocket({
         }
       };
     },
-    [closeWs]
+    []
+  );
+
+  const connect = useCallback(
+    async (uid: string) => {
+      closeWs();
+      try {
+        const resp = await fetch("/api/banking/ws-token", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ user_id: uid }),
+        });
+        if (!resp.ok) { console.warn("[WS] token fetch failed:", resp.status); return; }
+        const data = await resp.json();
+        if (!data.token) return;
+        openWs(data.token);
+      } catch (err) {
+        console.warn("[WS] token fetch error:", err);
+      }
+    },
+    [closeWs, openWs]
+  );
+
+  const connectPublic = useCallback(
+    async () => {
+      closeWs();
+      try {
+        const resp = await fetch("/api/banking/ws-token/public", { method: "POST" });
+        if (!resp.ok) { console.warn("[WS] public token fetch failed:", resp.status); return; }
+        const data = await resp.json();
+        if (!data.token) return;
+        openWs(data.token);
+      } catch (err) {
+        console.warn("[WS] public token fetch error:", err);
+      }
+    },
+    [closeWs, openWs]
   );
 
   useEffect(() => {
-    if (!userId) {
-      closeWs();
-      return;
+    if (userId) {
+      connect(userId);
+    } else {
+      connectPublic();
     }
-    connect(userId);
     return closeWs;
-  }, [userId, connect, closeWs]);
+  }, [userId, connect, connectPublic, closeWs]);
 
   return { connected };
 }

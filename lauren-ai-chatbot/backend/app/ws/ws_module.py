@@ -20,13 +20,14 @@ from app.crypto.crypto_module import CryptoModule
 from app.ws.event_forwarder import EventForwarder
 from app.ws.token_service import WsTokenService
 from app.ws.ws_gateway import BankingWsGateway
+from app.ws.ws_public_token_controller import WsPublicTokenController
 from app.ws.ws_token_controller import WsTokenController
 
 
 @module(
     imports=[CryptoModule, BankingModule],
     providers=[EventForwarder, WsTokenService],
-    controllers=[BankingWsGateway, WsTokenController],
+    controllers=[BankingWsGateway, WsTokenController, WsPublicTokenController],
     exports=[EventForwarder],
 )
 class WsModule:

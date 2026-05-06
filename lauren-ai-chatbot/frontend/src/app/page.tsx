@@ -16,10 +16,10 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Shield, Lock, Sparkles, Zap, Menu, X } from "lucide-react";
+import { Globe, Shield, Lock, Sparkles, Zap, Menu, X } from "lucide-react";
 import { UserSelector, type AccountSummary } from "@/components/UserSelector";
 import { AccountCard } from "@/components/AccountCard";
-import { BankingChatInterface } from "@/components/BankingChatInterface";
+import { BankingChatInterface, type Message } from "@/components/BankingChatInterface";
 import { DemoInfoPanel } from "@/components/DemoInfoPanel";
 import { LiveActivityFeed, type ActivityEntry } from "@/components/LiveActivityFeed";
 import { SettingsPanel, type Theme, type FontSize } from "@/components/SettingsPanel";
@@ -27,6 +27,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useWebSocket, type WsEvent, type TransferApprovalRequest, type AgentHandoffEvent } from "@/hooks/useWebSocket";
 import { TransferApprovalDialog } from "@/components/TransferApprovalDialog";
 import { cn } from "@/lib/utils";
+import { generateId } from "@/lib/uuid";
 
 function initials(name: string): string {
   return name.split(" ").map((p) => p[0]).join("").toUpperCase().slice(0, 2);
@@ -54,7 +55,31 @@ export default function Home() {
   const [pendingApproval, setPendingApproval] = useState<TransferApprovalRequest | null>(null);
 
   // ── Active agent state ───────────────────────────────────────────────
-  const [currentAgent, setCurrentAgent] = useState<string>("Banking CRM Agent (English)");
+  const [currentAgent, setCurrentAgent] = useState<string>("Banking CRM Agent (Public)");
+
+  // ── Per-user conversation history ───────────────────────────────────
+  // Keyed by userId (or "public" for unauthenticated).  Conversation IDs
+  // live in a ref because they don't need to trigger re-renders.
+  const [userHistories, setUserHistories] = useState<Record<string, Message[]>>({});
+  const userConvIdsRef = useRef<Record<string, string>>({});
+
+  const userKey = selectedUserId ?? "public";
+  if (!userConvIdsRef.current[userKey]) {
+    userConvIdsRef.current[userKey] = generateId();
+  }
+  const currentMessages = userHistories[userKey] ?? [];
+  const currentConvId = userConvIdsRef.current[userKey];
+
+  // userKeyRef allows handleMessagesChange to be stable (empty deps) while
+  // always writing to the key of the currently-selected user.
+  const userKeyRef = useRef(userKey);
+  userKeyRef.current = userKey;
+  const handleMessagesChange = useCallback(
+    (msgs: Message[]) => {
+      setUserHistories((prev) => ({ ...prev, [userKeyRef.current]: msgs }));
+    },
+    [] // stable — reads current key from ref, never goes stale
+  );
 
   // ── UI state ────────────────────────────────────────────────────────
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -112,6 +137,12 @@ export default function Home() {
     localStorage.setItem("fontSize", f);
   };
 
+  // Allow onSelect to accept null (public/unauthenticated)
+  const handleUserSelect = useCallback((id: string | null) => {
+    setSelectedUserId(id);
+    setSidebarOpen(false);
+  }, []);
+
   const handleWsEvent = useCallback((event: WsEvent) => {
     if (event.type === "balance_changed") {
       const balances = event.balances as Record<string, number>;
@@ -130,13 +161,9 @@ export default function Home() {
 
   const { connected } = useWebSocket({ userId: selectedUserId, onEvent: handleWsEvent });
 
-  useEffect(() => {
-    setSelectedUserId("alice");
-  }, []);
-
   // Reset active agent when user switches
   useEffect(() => {
-    setCurrentAgent("Banking CRM Agent (English)");
+    setCurrentAgent(selectedUserId ? "Banking CRM Agent (Authenticated)" : "Banking CRM Agent (Public)");
   }, [selectedUserId]);
 
   useEffect(() => {
@@ -177,7 +204,7 @@ export default function Home() {
             <UserSelector
               accounts={accounts}
               selectedUserId={selectedUserId}
-              onSelect={(id) => { setSelectedUserId(id); setSidebarOpen(false); }}
+              onSelect={handleUserSelect}
             />
           )}
         </CardContent>
@@ -197,9 +224,7 @@ export default function Home() {
       )}
 
       {/* Live activity feed */}
-      {selectedUserId && (
-        <LiveActivityFeed entries={activityEntries} connected={connected} />
-      )}
+      <LiveActivityFeed entries={activityEntries} connected={connected} />
 
       {/* Demo info panel */}
       <DemoInfoPanel />
@@ -305,6 +330,20 @@ export default function Home() {
           </div>
         ) : (
           <div className="flex items-center gap-2 overflow-x-auto pb-0.5">
+            {/* Public pill */}
+            <button
+              onClick={() => setSelectedUserId(null)}
+              className={cn(
+                "flex-shrink-0 flex items-center gap-2 rounded-full px-3 py-1.5 border transition-all text-xs font-medium",
+                selectedUserId === null
+                  ? "bg-primary/10 border-primary/40 shadow-sm"
+                  : "bg-card border-border hover:bg-accent/50"
+              )}
+            >
+              <Globe className={cn("w-3.5 h-3.5", selectedUserId === null ? "text-primary" : "text-muted-foreground")} />
+              <span className={selectedUserId === null ? "text-primary" : "text-foreground"}>Public</span>
+            </button>
+
             {accounts.map((account) => {
               const selected = account.user_id === selectedUserId;
               const balance = liveBalances[account.user_id] ?? account.balance;
@@ -355,48 +394,52 @@ export default function Home() {
               <div className="flex items-center justify-between pb-3">
                 <div>
                   <CardTitle className="text-base">Banking Assistant</CardTitle>
-                  {selectedAccount && (
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Logged in as{" "}
-                      <span
-                        className="font-semibold"
-                        style={{ color: selectedAccount.avatar_color }}
-                      >
-                        {selectedAccount.name}
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {selectedAccount ? (
+                      <>
+                        Logged in as{" "}
+                        <span className="font-semibold" style={{ color: selectedAccount.avatar_color }}>
+                          {selectedAccount.name}
+                        </span>
+                      </>
+                    ) : (
+                      <span className="inline-flex items-center gap-1">
+                        <Globe className="h-3 w-3" />
+                        Public (Guest) · not logged in
                       </span>
-                    </p>
-                  )}
+                    )}
+                  </p>
                   <p className="text-xs text-primary mt-0.5">
                     Talking to:{" "}
                     <span className="font-semibold">{currentAgent}</span>
                   </p>
                 </div>
-                {selectedAccount && (
+                {selectedAccount ? (
                   <div
                     className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
                     style={{ backgroundColor: selectedAccount.avatar_color }}
                   >
                     {initials(selectedAccount.name)}
                   </div>
+                ) : (
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center bg-muted border border-border flex-shrink-0">
+                    <Globe className="h-4 w-4 text-muted-foreground" />
+                  </div>
                 )}
               </div>
             </CardHeader>
 
             <CardContent className="flex-1 p-0 min-h-0 overflow-hidden">
-              {selectedUserId && selectedAccount ? (
-                <div className="h-full" style={{ minHeight: "300px" }}>
-                  <BankingChatInterface
-                    key={selectedUserId}
-                    userId={selectedUserId}
-                    userName={selectedAccount.name.split(" ")[0]}
-                    onComplete={() => setAccountRefreshKey((k) => k + 1)}
-                  />
-                </div>
-              ) : (
-                <div className="flex items-center justify-center h-full min-h-[200px] text-muted-foreground text-sm">
-                  Select a user above to start banking
-                </div>
-              )}
+              <div className="h-full" style={{ minHeight: "300px" }}>
+                <BankingChatInterface
+                  userId={selectedUserId}
+                  userName={selectedAccount?.name.split(" ")[0] ?? ""}
+                  messages={currentMessages}
+                  conversationId={currentConvId}
+                  onMessagesChange={handleMessagesChange}
+                  onComplete={() => setAccountRefreshKey((k) => k + 1)}
+                />
+              </div>
             </CardContent>
           </Card>
         </main>

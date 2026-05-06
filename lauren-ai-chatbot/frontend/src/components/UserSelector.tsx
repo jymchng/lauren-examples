@@ -1,13 +1,13 @@
 "use client";
 
 /**
- * UserSelector — displays Alice, Bob, and Charlie as clickable account cards.
+ * UserSelector — displays a "Public (Guest)" option plus Alice, Bob, and Charlie.
  *
- * Each card shows the user's avatar, name, account ID, and current balance.
- * Clicking a card fires `onSelect` with the user_id.  The selected card is
- * highlighted.
+ * The public option sets userId to null (unauthenticated session).
+ * Clicking an account card fires `onSelect` with the user_id string.
  */
 
+import { Globe } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface AccountSummary {
@@ -21,7 +21,7 @@ export interface AccountSummary {
 interface UserSelectorProps {
   accounts: AccountSummary[];
   selectedUserId: string | null;
-  onSelect: (userId: string) => void;
+  onSelect: (userId: string | null) => void;
 }
 
 function initials(name: string): string {
@@ -46,8 +46,36 @@ export function UserSelector({
   selectedUserId,
   onSelect,
 }: UserSelectorProps) {
+  const publicSelected = selectedUserId === null;
+
   return (
     <div className="flex flex-col gap-2">
+      {/* Public / Guest option */}
+      <button
+        onClick={() => onSelect(null)}
+        className={cn(
+          "w-full flex items-center gap-3 rounded-xl px-3 py-3 text-left transition-all",
+          "border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          publicSelected
+            ? "bg-primary/10 border-primary/30 shadow-sm"
+            : "bg-card border-border hover:bg-accent/50"
+        )}
+      >
+        <div className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-muted border border-border shadow-sm">
+          <Globe className={cn("h-5 w-5", publicSelected ? "text-primary" : "text-muted-foreground")} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className={cn("text-sm font-semibold truncate", publicSelected ? "text-primary" : "text-foreground")}>
+            Public (Guest)
+          </p>
+          <p className="text-xs text-muted-foreground truncate">Not logged in</p>
+        </div>
+        <div className="flex-shrink-0 text-right">
+          <p className="text-xs text-muted-foreground">Browse only</p>
+        </div>
+      </button>
+
+      {/* Authenticated accounts */}
       {accounts.map((account) => {
         const selected = account.user_id === selectedUserId;
         return (
@@ -62,37 +90,22 @@ export function UserSelector({
                 : "bg-card border-border hover:bg-accent/50"
             )}
           >
-            {/* Avatar */}
             <div
               className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-sm"
               style={{ backgroundColor: account.avatar_color }}
             >
               {initials(account.name)}
             </div>
-
-            {/* Details */}
             <div className="flex-1 min-w-0">
-              <p
-                className={cn(
-                  "text-sm font-semibold truncate",
-                  selected ? "text-primary" : "text-foreground"
-                )}
-              >
+              <p className={cn("text-sm font-semibold truncate", selected ? "text-primary" : "text-foreground")}>
                 {account.name}
               </p>
               <p className="text-xs text-muted-foreground truncate">
                 {account.account_id}
               </p>
             </div>
-
-            {/* Balance */}
             <div className="flex-shrink-0 text-right">
-              <p
-                className={cn(
-                  "text-sm font-bold tabular-nums",
-                  selected ? "text-primary" : "text-foreground"
-                )}
-              >
+              <p className={cn("text-sm font-bold tabular-nums", selected ? "text-primary" : "text-foreground")}>
                 {formatBalance(account.balance)}
               </p>
             </div>

@@ -330,20 +330,20 @@ class TestBankingWiringE2E:
         assert signal_bus is module_bus
 
     def test_crm_agent_has_agent_meta(self):
-        from app.ai.crm_agent import BankingCRMAgent
+        from app.ai.auth_crm_agent import AuthenticatedCRMAgent
 
-        assert hasattr(BankingCRMAgent, "__lauren_ai_agent__")
+        assert hasattr(AuthenticatedCRMAgent, "__lauren_ai_agent__")
 
     def test_transfer_agent_has_agent_meta(self):
-        from app.ai.transfer_agent import BankingTransferAgent
+        from app.ai.transfer_agent import BankTransferAgent
 
-        assert hasattr(BankingTransferAgent, "__lauren_ai_agent__")
+        assert hasattr(BankTransferAgent, "__lauren_ai_agent__")
 
     def test_crm_agent_has_use_tools_meta(self):
-        from app.ai.crm_agent import BankingCRMAgent
+        from app.ai.auth_crm_agent import AuthenticatedCRMAgent
         from lauren_ai._agents import USE_TOOLS_META
 
-        assert hasattr(BankingCRMAgent, USE_TOOLS_META)
+        assert hasattr(AuthenticatedCRMAgent, USE_TOOLS_META)
 
     def test_cost_tracker_is_wired(self):
         from app.ai.ai_module import _cost_tracker
@@ -358,46 +358,43 @@ class TestBankingWiringE2E:
         store = get_trace_store()
         assert store is not None
 
-    def test_banking_delegation_tool_has_tool_meta(self):
-        from app.ai.banking_delegation import DelegateToBankingTransfer
+    def test_check_auth_tool_has_tool_meta(self):
+        from app.ai.check_auth_tool import CheckAuthenticationTool
         from lauren_ai._tools import TOOL_META
 
-        assert hasattr(DelegateToBankingTransfer, TOOL_META)
+        assert hasattr(CheckAuthenticationTool, TOOL_META)
 
 
 class TestModuleInjectsWiring:
-    """Verify runner=TransferAgentRunner produces independent DI tokens."""
+    """Verify runner tokens produce independent DI singletons."""
 
-    def test_transfer_and_crm_runners_are_distinct_singletons(self, app):
+    def test_transfer_and_auth_crm_runners_are_distinct_singletons(self, app):
         import asyncio
 
-        from app.ai.banking_delegation import TransferAgentRunner
-        from app.ai.chat_banking_controller import BankingChatController
+        from app.ai.banking_delegation import AuthCRMRunner, TransferAgentRunner
         from lauren_ai import AgentRunner
 
         loop = asyncio.new_event_loop()
         try:
-            controller = loop.run_until_complete(app.container.resolve(BankingChatController))
+            ar = loop.run_until_complete(app.container.resolve(AuthCRMRunner))
             tr = loop.run_until_complete(app.container.resolve(TransferAgentRunner))
         finally:
             loop.close()
-        ar = controller._runner
         assert isinstance(ar, AgentRunner)
-        assert isinstance(tr, TransferAgentRunner)
+        assert isinstance(tr, AgentRunner)
         assert ar is not tr
 
     def test_crm_runner_is_not_transfer_runner_subtype(self, app):
         import asyncio
 
-        from app.ai.banking_delegation import TransferAgentRunner
-        from app.ai.chat_banking_controller import BankingChatController
+        from app.ai.banking_delegation import AuthCRMRunner, TransferAgentRunner
 
         loop = asyncio.new_event_loop()
         try:
-            controller = loop.run_until_complete(app.container.resolve(BankingChatController))
+            ar = loop.run_until_complete(app.container.resolve(AuthCRMRunner))
         finally:
             loop.close()
-        assert not isinstance(controller._runner, TransferAgentRunner)
+        assert not isinstance(ar, TransferAgentRunner)
 
     def test_transfer_runner_concrete_type_is_subclass(self, app):
         import asyncio

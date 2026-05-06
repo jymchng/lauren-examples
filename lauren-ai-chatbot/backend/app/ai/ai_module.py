@@ -1,29 +1,21 @@
-"""AIModule — wires LLMModule, all four banking agents, and delegation.
+"""AIModule — wires LLMModule and all three banking agents.
 
 Agent architecture
 ------------------
-Four agents are wired in two language pairs:
+Three English-only agents in distinct modules:
 
-  English pair:
-    BankingCRMAgentEN   (CRMAgentRunner)
-    BankingTransferAgentEN (TransferAgentRunner)
+  UnauthenticatedCRMAgent  (UnauthCRMRunner)     — public, pre-login
+  AuthenticatedCRMAgent    (AuthCRMRunner)        — logged-in customers
+  BankTransferAgent        (TransferAgentRunner)  — fund transfers
 
-  Mandarin pair:
-    BankingCRMAgentZH   (CRMAgentRunner)
-    BankingTransferAgentZH (TransferAgentRunner)
-
-Both CRM agents share CRMAgentRunner; both Transfer agents share
-TransferAgentRunner.  AgentRunner.run(agent, prompt, ...) is stateless
-and receives the agent instance as a parameter, so one runner token
-serves either language variant.
-
-CRM agents can hand off to either Transfer agent.
-Transfer agents can hand back to either CRM agent.
+CheckAuthenticationTool is shared across all three agents.  It is owned and
+exported by CheckAuthModule; each AgentModule imports CheckAuthModule and uses
+skip_tools=[CheckAuthenticationTool] to prevent duplicate DI registration.
 
 Observability
 -------------
-Both runners are wired to the shared ``signal_bus`` so every model call
-emits ``ModelCallComplete`` events.  ``CostTracker`` accumulates usage.
+All runners are wired to the shared ``signal_bus`` so every model call emits
+``ModelCallComplete`` events.  ``CostTracker`` accumulates usage.
 """
 
 from __future__ import annotations
@@ -46,16 +38,14 @@ from lauren_ai._module import AgentModule, LLMService
 from app.ai.active_agent_module import ActiveAgentModule
 from app.ai.active_agent_store import ActiveAgentStore
 from app.ai.approval_module import ApprovalModule
-from app.ai.banking_delegation import (
-    CRMAgentRunner,
-    TransferAgentRunner,
-)
-from app.ai.crm_agent import BankingCRMAgentEN
-from app.ai.crm_agent_zh import BankingCRMAgentZH
+from app.ai.auth_crm_agent import AuthenticatedCRMAgent
+from app.ai.banking_delegation import AuthCRMRunner, TransferAgentRunner, UnauthCRMRunner
+from app.ai.check_auth_module import CheckAuthModule
+from app.ai.check_auth_tool import CheckAuthenticationTool
 from app.ai.handoff_tool import HandoffTo
 from app.ai.signals import signal_bus
-from app.ai.transfer_agent import BankingTransferAgentEN
-from app.ai.transfer_agent_zh import BankingTransferAgentZH
+from app.ai.transfer_agent import BankTransferAgent
+from app.ai.unauth_crm_agent import UnauthenticatedCRMAgent
 from app.ai.chat_banking_controller import BankingChatController
 from app.banking.banking_module import BankingModule
 from app.crypto.crypto_module import CryptoModule
@@ -80,30 +70,37 @@ _conversation_store = InMemoryConversationStore()
 
 # ── 3. Agent + tool wiring ──────────────────────────────────────────────────
 #
-# Two AgentModule instances: one for both CRM agents, one for both Transfer
-# agents.  Placing language variants in the same module ensures each tool
-# class is owned by exactly one module (avoids ModuleExportViolation).
+# Three AgentModule instances — one per agent.  CheckAuthenticationTool is
+# shared; it is owned by CheckAuthModule and imported via skip_tools= to
+# prevent ModuleExportViolation.
 
-_TransferAgentModule = AgentModule.for_root(
-    agents=[BankingTransferAgentEN, BankingTransferAgentZH],
-    tools=[
-        HandoffTo[BankingCRMAgentEN, BankingCRMAgentZH],      # Transfer → CRM (either language)
-    ],
-    imports=[LLMProvider, BankingModule, ApprovalModule, WsModule, ActiveAgentModule],
+_UnauthCRMModule = AgentModule.for_root(
+    agents=[UnauthenticatedCRMAgent],
+    imports=[LLMProvider, CheckAuthModule, WsModule, ActiveAgentModule],
+    skip_tools=[CheckAuthenticationTool],
+    signals=signal_bus,
+    conversation_store=_conversation_store,
+    runner=UnauthCRMRunner,
+)
+
+_AuthCRMModule = AgentModule.for_root(
+    agents=[AuthenticatedCRMAgent],
+    tools=[HandoffTo[BankTransferAgent, UnauthenticatedCRMAgent]],
+    imports=[LLMProvider, CheckAuthModule, BankingModule, WsModule, ActiveAgentModule],
+    skip_tools=[CheckAuthenticationTool],
+    signals=signal_bus,
+    conversation_store=_conversation_store,
+    runner=AuthCRMRunner,
+)
+
+_TransferModule = AgentModule.for_root(
+    agents=[BankTransferAgent],
+    tools=[HandoffTo[UnauthenticatedCRMAgent, AuthenticatedCRMAgent]],
+    imports=[LLMProvider, CheckAuthModule, BankingModule, ApprovalModule, WsModule, ActiveAgentModule],
+    skip_tools=[CheckAuthenticationTool],
     signals=signal_bus,
     conversation_store=_conversation_store,
     runner=TransferAgentRunner,
-)
-
-_CRMAgentModule = AgentModule.for_root(
-    agents=[BankingCRMAgentEN, BankingCRMAgentZH],
-    tools=[
-        HandoffTo[BankingTransferAgentEN, BankingTransferAgentZH],  # CRM → Transfer (either language)
-    ],
-    imports=[LLMProvider, BankingModule, WsModule, ActiveAgentModule],
-    signals=signal_bus,
-    conversation_store=_conversation_store,
-    runner=CRMAgentRunner,
 )
 
 # ── 4. CostTracker ──────────────────────────────────────────────────────────
@@ -124,8 +121,9 @@ _cost_tracker_provider = use_value(provide=CostTracker, value=_cost_tracker)
 @module(
     imports=[
         LLMProvider,
-        _CRMAgentModule,
-        _TransferAgentModule,
+        _UnauthCRMModule,
+        _AuthCRMModule,
+        _TransferModule,
         BankingModule,
         CryptoModule,
         WsModule,
@@ -136,10 +134,9 @@ _cost_tracker_provider = use_value(provide=CostTracker, value=_cost_tracker)
     ],
     exports=[
         LLMService,
-        BankingCRMAgentEN,
-        BankingCRMAgentZH,
-        BankingTransferAgentEN,
-        BankingTransferAgentZH,
+        UnauthenticatedCRMAgent,
+        AuthenticatedCRMAgent,
+        BankTransferAgent,
         ActiveAgentStore,
         CostTracker,
     ],
@@ -148,4 +145,4 @@ _cost_tracker_provider = use_value(provide=CostTracker, value=_cost_tracker)
     ],
 )
 class AIModule:
-    """Provides banking AI services: four agents, two runners, and cost tracker."""
+    """Provides banking AI services: three agents, three runners, and cost tracker."""

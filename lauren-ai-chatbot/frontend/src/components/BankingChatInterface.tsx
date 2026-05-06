@@ -3,12 +3,9 @@
 /**
  * BankingChatInterface — agentic banking chat backed by BankingCRMAgent.
  *
- * Differences from the general ChatInterface:
- * - Sends to `/api/banking/chat` (HMAC-signed by the server-side proxy).
- * - Includes `user_id` and `conversation_id` in the payload.
- * - Resets history and generates a new conversation_id when `userId` changes
- *   so each user gets an isolated conversation.
- * - SSE events are identical: `token`, `done`, `error`.
+ * Messages and conversationId are controlled by the parent so that history
+ * persists across user switches.  Ephemeral UI state (input, streaming,
+ * error) lives locally and resets when userId changes.
  */
 
 import { useRef, useState, useCallback, useEffect } from "react";
@@ -17,6 +14,8 @@ import { Button } from "@/components/ui/button";
 import { MessageBubble, type Message } from "@/components/MessageBubble";
 import { StreamingMessage } from "@/components/StreamingMessage";
 import { generateId } from "@/lib/uuid";
+
+export type { Message };
 
 function parseSSEChunk(chunk: string): Array<{ event: string; data: string }> {
   const events: Array<{ event: string; data: string }> = [];
@@ -38,34 +37,51 @@ function parseSSEChunk(chunk: string): Array<{ event: string; data: string }> {
 }
 
 interface BankingChatInterfaceProps {
-  userId: string;
+  userId: string | null;
   userName: string;
+  messages: Message[];
+  conversationId: string;
+  onMessagesChange: (messages: Message[]) => void;
   onComplete?: () => void;
 }
 
-const SUGGESTIONS = [
+const AUTH_SUGGESTIONS = [
   "What's my current balance?",
   "Show me my recent transactions.",
   "Transfer $100 to Bob.",
   "What's the account ID for my account?",
 ];
 
-export function BankingChatInterface({ userId, userName, onComplete }: BankingChatInterfaceProps) {
-  const [messages, setMessages] = useState<Message[]>([]);
+const PUBLIC_SUGGESTIONS = [
+  "What account types do you offer?",
+  "What are your interest rates?",
+  "How do I open an account?",
+  "What are your branch hours?",
+];
+
+export function BankingChatInterface({
+  userId,
+  userName,
+  messages,
+  conversationId,
+  onMessagesChange,
+  onComplete,
+}: BankingChatInterfaceProps) {
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [conversationId] = useState(() => generateId());
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const prevUserIdRef = useRef(userId);
 
-  // Reset conversation when user switches
+  const isPublic = userId === null;
+  const suggestions = isPublic ? PUBLIC_SUGGESTIONS : AUTH_SUGGESTIONS;
+
+  // Reset ephemeral state when the user switches
   useEffect(() => {
     if (prevUserIdRef.current !== userId) {
       prevUserIdRef.current = userId;
-      setMessages([]);
       setInput("");
       setStreamingContent("");
       setError(null);
@@ -96,23 +112,23 @@ export function BankingChatInterface({ userId, userName, onComplete }: BankingCh
         content: text,
       };
 
-      const updatedMessages = [...messages, userMessage];
-      setMessages(updatedMessages);
+      // Track messages locally within this send so we can accumulate
+      // across break events without relying on stale closure state.
+      let localMessages = [...messages, userMessage];
+      onMessagesChange(localMessages);
       setStreaming(true);
       setStreamingContent("");
 
       try {
-        const response = await fetch("/api/banking/chat", {
+        const endpoint = userId ? "/api/banking/chat" : "/api/banking/chat/public";
+        const response = await fetch(endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            messages: updatedMessages
+            messages: localMessages
               .filter((m) => m.role !== "system")
-              .map(({ role, content }) => ({
-                role,
-                content,
-              })),
-            user_id: userId,
+              .map(({ role, content }) => ({ role, content })),
+            user_id: userId ?? "",
             conversation_id: conversationId,
           }),
         });
@@ -150,22 +166,23 @@ export function BankingChatInterface({ userId, userName, onComplete }: BankingCh
                   role: "assistant",
                   content: accumulated,
                 };
-                setMessages((prev) => [...prev, assistantMessage]);
+                localMessages = [...localMessages, assistantMessage];
+                onMessagesChange(localMessages);
                 setStreamingContent("");
                 setStreaming(false);
                 return;
               } else if (event === "break") {
-                // Flush the before-handoff agent's response, then inject
-                // the agent-change divider. Order matters: response first,
-                // divider second, so messages appear in the correct sequence.
-                const msgs: Message[] = [];
+                const newMsgs: Message[] = [];
                 if (accumulated) {
-                  msgs.push({ id: generateId(), role: "assistant", content: accumulated });
+                  newMsgs.push({ id: generateId(), role: "assistant", content: accumulated });
                 }
                 if (data) {
-                  msgs.push({ id: generateId(), role: "system", content: data });
+                  newMsgs.push({ id: generateId(), role: "system", content: data });
                 }
-                if (msgs.length) setMessages((prev) => [...prev, ...msgs]);
+                if (newMsgs.length) {
+                  localMessages = [...localMessages, ...newMsgs];
+                  onMessagesChange(localMessages);
+                }
                 setStreamingContent("");
                 accumulated = "";
               } else if (event === "error") {
@@ -176,21 +193,20 @@ export function BankingChatInterface({ userId, userName, onComplete }: BankingCh
         }
 
         if (accumulated) {
-          setMessages((prev) => [
-            ...prev,
+          localMessages = [
+            ...localMessages,
             { id: generateId(), role: "assistant", content: accumulated },
-          ]);
+          ];
+          onMessagesChange(localMessages);
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: generateId(),
-            role: "assistant",
-            content: `⚠️ Error: ${err instanceof Error ? err.message : String(err)}`,
-          },
-        ]);
+        const errMsg = err instanceof Error ? err.message : String(err);
+        setError(errMsg);
+        localMessages = [
+          ...localMessages,
+          { id: generateId(), role: "assistant", content: `⚠️ Error: ${errMsg}` },
+        ];
+        onMessagesChange(localMessages);
       } finally {
         setStreaming(false);
         setStreamingContent("");
@@ -198,7 +214,7 @@ export function BankingChatInterface({ userId, userName, onComplete }: BankingCh
         onComplete?.();
       }
     },
-    [input, messages, streaming, userId, conversationId, onComplete]
+    [input, messages, streaming, userId, conversationId, onMessagesChange, onComplete]
   );
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -223,10 +239,12 @@ export function BankingChatInterface({ userId, userName, onComplete }: BankingCh
         {isEmpty && (
           <div className="flex flex-col items-center justify-center min-h-[200px] gap-4">
             <p className="text-muted-foreground text-sm">
-              Hi {userName}! How can I help you today?
+              {isPublic
+                ? "Hi! How can I help you today?"
+                : `Hi ${userName}! How can I help you today?`}
             </p>
             <div className="flex flex-wrap justify-center gap-2">
-              {SUGGESTIONS.map((s) => (
+              {suggestions.map((s) => (
                 <button
                   key={s}
                   onClick={(e) => {
@@ -271,6 +289,8 @@ export function BankingChatInterface({ userId, userName, onComplete }: BankingCh
             placeholder={
               streaming
                 ? "Waiting for response…"
+                : isPublic
+                ? "Ask about our products, rates, or how to get started…"
                 : "Ask about your balance, transfers, transactions…"
             }
             disabled={streaming}
@@ -289,7 +309,9 @@ export function BankingChatInterface({ userId, userName, onComplete }: BankingCh
           </Button>
         </form>
         <p className="mt-1.5 text-[10px] text-muted-foreground text-center">
-          Identity verified · Payloads signed with HMAC-SHA256
+          {isPublic
+            ? "Payloads signed with HMAC-SHA256 · Log in for account access"
+            : "Identity verified · Payloads signed with HMAC-SHA256"}
         </p>
       </div>
     </div>

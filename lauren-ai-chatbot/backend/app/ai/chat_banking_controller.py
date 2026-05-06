@@ -6,29 +6,23 @@ Flow
 2. ``SignatureGuard`` verifies the signature AND pins ``request.state.user_id``
    from the now-trusted payload body.
 3. Controller reads ``request.state.user_id`` (the guard-verified value, NOT
-   the raw body field) and looks up the account in ``BankDatabase``.
-4. Enriches ``request.state`` with the canonical account details.
-5. Wraps the live ``Request`` object in a lauren ``ExecutionContext`` and passes
-   it to ``AgentRunner.run()`` as ``execution_context``.  This is the security
-   anchor: it flows ``AgentContext → ToolContext.execution_context`` and is
-   never part of any JSON schema the LLM sees.
-6. Prepends ``[BANKING_AUTH: ...]`` to the customer message so the CRM Agent
-   can address the customer by name.  **UX only** — tools never derive identity
-   from message text.
-7. Runs the active agent (defaults to English CRM) and streams SSE.  Agents
-   can hand off to each other; the controller loops until the active agent
-   stabilises.
+   the raw body field).
+4. If authenticated: looks up account in BankDatabase, enriches request.state,
+   prepends [BANKING_AUTH:...] to prompt, routes to AuthenticatedCRMAgent.
+5. If not authenticated (no user_id): no auth prefix, routes to
+   UnauthenticatedCRMAgent.
+6. Wraps the live Request in an ExecutionContext passed to AgentRunner.run().
+   This flows AgentContext → ToolContext.execution_context — the security anchor.
+7. Runs the active agent and streams SSE.  Agents can hand off; the controller
+   loops until the active agent stabilises.
 
 Security guarantees
 -------------------
 * Identity is pinned to ``request.state`` by ``SignatureGuard`` from a
-  body that is cryptographically verified with HMAC-SHA256.  The browser
-  cannot change ``user_id`` without breaking the signature.
-* ``execution_context`` is a ``lauren.types.ExecutionContext`` whose
-  ``.request.state.user_id`` holds the guard-verified identity.
-* ``TransferFundsTool`` and ``GetTransactionHistoryTool`` read
-  ``ctx.execution_context.request.state.get("user_id")`` — the LLM
-  supplies only transfer details (recipient, amount), never the sender.
+  body that is cryptographically verified with HMAC-SHA256.
+* ``execution_context.request.state.user_id`` holds the guard-verified identity.
+* Tools read identity from ``ctx.execution_context.request.state`` — the LLM
+  never supplies or influences identity.
 """
 
 from __future__ import annotations
@@ -37,16 +31,17 @@ from lauren import EventStream, Json, ServerSentEvent, controller, post, use_gua
 from lauren.types import ExecutionContext
 
 from app.ai.active_agent_store import ActiveAgentStore
-from app.ai.agent_names import CRM_AGENT_NAME_EN, CRM_AGENT_NAME_ZH, TRANSFER_AGENT_NAME_EN, TRANSFER_AGENT_NAME_ZH
-from app.ai.crm_agent import BankingCRMAgentEN
-from app.ai.crm_agent_zh import BankingCRMAgentZH
-from app.ai.transfer_agent import BankingTransferAgentEN
-from app.ai.transfer_agent_zh import BankingTransferAgentZH
+from app.ai.agent_names import AUTH_CRM_AGENT_NAME, TRANSFER_AGENT_NAME, UNAUTH_CRM_AGENT_NAME
+from app.ai.auth_crm_agent import AuthenticatedCRMAgent
+from app.ai.banking_delegation import AuthCRMRunner, TransferAgentRunner, UnauthCRMRunner
+from app.ai.transfer_agent import BankTransferAgent
+from app.ai.unauth_crm_agent import UnauthenticatedCRMAgent
 from app.banking.bank_db import BankDatabase
 from app.ai.chat_schemas import ChatRequest
+from app.crypto.authenticated_user_guard import AuthenticatedUserGuard
 from app.crypto.signature_guard import SignatureGuard
 from app.ws.context import current_user_id
-from app.ai.banking_delegation import CRMAgentRunner, TransferAgentRunner
+from app.ws.ws_public_token_controller import PUBLIC_WS_USER
 
 _VALID_USERS = frozenset({"alice", "bob", "charlie"})
 
@@ -57,33 +52,33 @@ class BankingChatController:
     """Streams banking agent responses as Server-Sent Events.
 
     Routes each message to the correct agent based on the session's active
-    agent (tracked in ``ActiveAgentStore``).  Defaults to the English CRM
-    agent; the active agent changes via ``HandoffTo`` tool calls.  Supports
-    four agents across two language pairs (English and Mandarin).
+    agent (tracked in ``ActiveAgentStore``).  Unauthenticated sessions default
+    to ``UnauthenticatedCRMAgent``; authenticated sessions default to
+    ``AuthenticatedCRMAgent``.  The active agent changes via HandoffTo tool calls.
     """
 
     def __init__(
         self,
-        runner: CRMAgentRunner,
+        unauth_runner: UnauthCRMRunner,
+        auth_runner: AuthCRMRunner,
         transfer_runner: TransferAgentRunner,
         db: BankDatabase,
-        crm_agent: BankingCRMAgentEN,
-        crm_agent_zh: BankingCRMAgentZH,
-        transfer_agent: BankingTransferAgentEN,
-        transfer_agent_zh: BankingTransferAgentZH,
+        unauth_agent: UnauthenticatedCRMAgent,
+        auth_agent: AuthenticatedCRMAgent,
+        transfer_agent: BankTransferAgent,
         active_agent_store: ActiveAgentStore,
     ) -> None:
         self._db = db
         self._active_agent_store = active_agent_store
-        self._crm_agent = crm_agent          # default fallback
-        self._runner = runner                 # default fallback runner
         self._agent_registry: dict[str, tuple] = {
-            CRM_AGENT_NAME_EN:      (crm_agent,         runner),
-            CRM_AGENT_NAME_ZH:      (crm_agent_zh,      runner),
-            TRANSFER_AGENT_NAME_EN: (transfer_agent,    transfer_runner),
-            TRANSFER_AGENT_NAME_ZH: (transfer_agent_zh, transfer_runner),
+            UNAUTH_CRM_AGENT_NAME: (unauth_agent,   unauth_runner),
+            AUTH_CRM_AGENT_NAME:   (auth_agent,     auth_runner),
+            TRANSFER_AGENT_NAME:   (transfer_agent, transfer_runner),
         }
+        self._default_unauth = (unauth_agent, unauth_runner)
+        self._default_auth   = (auth_agent,   auth_runner)
 
+    @use_guards(AuthenticatedUserGuard)
     @post("/chat")
     async def stream(self, body: Json[ChatRequest], exec_ctx: ExecutionContext) -> EventStream:
         """Run the active banking agent with verified identity context.
@@ -94,48 +89,59 @@ class BankingChatController:
         - ``done``   — end of stream
         - ``error``  — error message
         """
-        # ── Identity: read from request.state, NOT from the raw body field ──
         request = exec_ctx.request
-        user_id = (request.state.get("user_id") or body.user_id).lower()
+        user_id = (request.state.get("user_id") or body.user_id or "").lower()
 
-        if user_id not in _VALID_USERS:
+        # Reject unknown authenticated users but allow empty user_id (unauthenticated)
+        if user_id and user_id not in _VALID_USERS:
 
             async def _reject():
                 yield ServerSentEvent(event="error", data=f"Unknown user: {user_id}")
 
             return EventStream(_reject())
 
-        account = self._db.get_account(user_id)
-        if not account:
+        if user_id:
+            account = self._db.get_account(user_id)
+            if not account:
 
-            async def _not_found():
-                yield ServerSentEvent(event="error", data="Account not found")
+                async def _not_found():
+                    yield ServerSentEvent(event="error", data="Account not found")
 
-            return EventStream(_not_found())
+                return EventStream(_not_found())
 
-        request.state.user_id = account.user_id
-        request.state.user_name = account.name
-        request.state.account_id = account.account_id
+            request.state.user_id    = account.user_id
+            request.state.user_name  = account.name
+            request.state.account_id = account.account_id
+            auth_prefix   = (
+                f"[BANKING_AUTH: user_id={account.user_id} | name={account.name}"
+                f" | account={account.account_id}]\n\n"
+            )
+            default_agent = AUTH_CRM_AGENT_NAME
+        else:
+            account       = None
+            auth_prefix   = ""
+            default_agent = UNAUTH_CRM_AGENT_NAME
 
         user_messages = [m for m in body.messages if m.role == "user"]
         raw_message = user_messages[-1].content if user_messages else ""
-
-        auth_prefix = (
-            f"[BANKING_AUTH: user_id={account.user_id} | name={account.name} | account={account.account_id}]\n\n"
-        )
         full_prompt = auth_prefix + raw_message
 
         def _resolve_agent(active: str):
-            return self._agent_registry.get(active, (self._crm_agent, self._runner))
+            if user_id:
+                fallback = self._default_auth
+            else:
+                fallback = self._default_unauth
+            return self._agent_registry.get(active, fallback)
 
         async def generate():
-            current_user_id.set(account.user_id)
+            if user_id:
+                current_user_id.set(user_id)
             try:
                 conv_id = body.conversation_id
                 chunk_size = 40
                 max_handoffs = 8
 
-                active = self._active_agent_store.get(conv_id, CRM_AGENT_NAME_EN)
+                active = self._active_agent_store.get(conv_id, default_agent)
                 prompt = full_prompt
                 handoffs = 0
 
@@ -153,7 +159,7 @@ class BankingChatController:
                     for i in range(0, len(content), chunk_size):
                         yield ServerSentEvent(event="token", data=content[i : i + chunk_size])
 
-                    new_active = self._active_agent_store.get(conv_id, CRM_AGENT_NAME_EN)
+                    new_active = self._active_agent_store.get(conv_id, default_agent)
                     if new_active == active or handoffs >= max_handoffs:
                         break
 
@@ -169,6 +175,55 @@ class BankingChatController:
                         )
                     else:
                         prompt = full_prompt
+                    active = new_active
+
+                yield ServerSentEvent(event="done", data="")
+            except Exception as exc:
+                yield ServerSentEvent(event="error", data=str(exc))
+
+        return EventStream(generate(), keep_alive=15.0)
+
+    @post("/chat/public")
+    async def stream_public(self, body: Json[ChatRequest], exec_ctx: ExecutionContext) -> EventStream:
+        """Public (unauthenticated) chat — routes only to UnauthenticatedCRMAgent.
+
+        Event types emitted: ``token``, ``break``, ``done``, ``error``.
+        No user_id is required; WS events are forwarded via the ``__public__`` channel.
+        """
+        conv_id = body.conversation_id
+        user_messages = [m for m in body.messages if m.role == "user"]
+        raw_message = user_messages[-1].content if user_messages else ""
+
+        async def generate():
+            current_user_id.set(PUBLIC_WS_USER)
+            try:
+                active = self._active_agent_store.get(conv_id, UNAUTH_CRM_AGENT_NAME)
+                prompt = raw_message
+                handoffs = 0
+                chunk_size = 40
+                max_handoffs = 4
+
+                while True:
+                    agent, runner = self._agent_registry.get(active, self._default_unauth)
+                    response = await runner.run(
+                        agent,
+                        prompt,
+                        conversation_id=f"{conv_id}:{active}",
+                        execution_context=exec_ctx,
+                        metadata={"conversation_id": conv_id},
+                    )
+                    content = response.content or ""
+                    for i in range(0, len(content), chunk_size):
+                        yield ServerSentEvent(event="token", data=content[i : i + chunk_size])
+
+                    new_active = self._active_agent_store.get(conv_id, UNAUTH_CRM_AGENT_NAME)
+                    if new_active == active or handoffs >= max_handoffs:
+                        break
+
+                    handoffs += 1
+                    summary = self._active_agent_store.pop_pending_summary(conv_id)
+                    yield ServerSentEvent(event="break", data=new_active)
+                    prompt = summary or raw_message
                     active = new_active
 
                 yield ServerSentEvent(event="done", data="")

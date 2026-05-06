@@ -141,11 +141,10 @@ class TestBankingChatInvalidUsers:
 
     @pytest.mark.asyncio
     async def test_empty_user_id_rejected(self, client):
+        # AuthenticatedUserGuard rejects unauthenticated requests at the HTTP layer.
         body = _body(user_id="")
         resp = await client.post("/api/banking/chat", content=body, headers=_signed(body))
-        assert resp.status_code == 200
-        events = _parse_sse(resp.content)
-        assert any(e.get("event") == "error" for e in events)
+        assert resp.status_code == 401
 
 
 # ---------------------------------------------------------------------------
@@ -326,7 +325,7 @@ class TestBankingChatValidUsers:
         because generate() only detected one level of handoff.
         """
         from app.ai.active_agent_store import ActiveAgentStore
-        from app.ai.agent_names import CRM_AGENT_NAME, TRANSFER_AGENT_NAME
+        from app.ai.agent_names import AUTH_CRM_AGENT_NAME as CRM_AGENT_NAME, TRANSFER_AGENT_NAME
 
         conv_id = "conv-twohop"
         body = _body(user_id="alice", content="Transfer $100 to bob", conversation_id=conv_id)
