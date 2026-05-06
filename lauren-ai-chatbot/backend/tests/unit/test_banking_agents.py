@@ -1,10 +1,11 @@
-"""Unit tests for all three banking agents' metadata and configuration."""
+"""Unit tests for all four banking agents' metadata and configuration."""
 
 from __future__ import annotations
 
 import pytest
 
 from app.ai.auth_crm_agent import AuthenticatedCRMAgent
+from app.ai.disputes_agent import DisputesAgent
 from app.ai.transfer_agent import BankTransferAgent
 from app.ai.unauth_crm_agent import UnauthenticatedCRMAgent
 
@@ -75,6 +76,30 @@ class TestBankTransferAgent:
 
     def test_has_use_tools_meta(self):
         assert hasattr(BankTransferAgent, "__lauren_ai_use_tools__") or hasattr(BankTransferAgent, "__lauren_ai_agent__")
+
+
+class TestDisputesAgent:
+    def test_has_agent_meta(self):
+        assert hasattr(DisputesAgent, "__lauren_ai_agent__")
+
+    def test_agent_meta_has_system_prompt(self):
+        meta = getattr(DisputesAgent, "__lauren_ai_agent__")
+        assert meta.system
+
+    def test_agent_meta_has_max_turns(self):
+        meta = getattr(DisputesAgent, "__lauren_ai_agent__")
+        assert meta.config.max_turns is not None
+
+    def test_system_prompt_mentions_dispute(self):
+        meta = getattr(DisputesAgent, "__lauren_ai_agent__")
+        assert "dispute" in meta.system.lower()
+
+    def test_system_prompt_mentions_fraud(self):
+        meta = getattr(DisputesAgent, "__lauren_ai_agent__")
+        assert "fraud" in meta.system.lower()
+
+    def test_has_use_tools_meta(self):
+        assert hasattr(DisputesAgent, "__lauren_ai_use_tools__") or hasattr(DisputesAgent, "__lauren_ai_agent__")
 
 
 class TestCheckAuthenticationTool:

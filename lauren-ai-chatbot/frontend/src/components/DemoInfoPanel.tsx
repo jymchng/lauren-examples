@@ -62,7 +62,7 @@ export function DemoInfoPanel() {
       <Section title="About this demo" defaultOpen>
         <p>
           <strong className="text-foreground">SecureBank AI</strong> demonstrates
-          a secure, multi-agent banking assistant.
+          a secure, four-agent banking assistant built with the Lauren AI framework.
         </p>
         <p>
           Three demo users — <span className="font-medium text-[#10b981]">Alice</span>,{" "}
@@ -79,19 +79,37 @@ export function DemoInfoPanel() {
             <Pill color="bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">
               Multi-agent
             </Pill>
-            A <strong className="text-foreground">CRM Agent</strong> handles
-            conversation and delegates fund transfers to a separate{" "}
-            <strong className="text-foreground">Transfer Agent</strong>.
+            Four specialist agents:{" "}
+            <strong className="text-foreground">Public CRM</strong> (pre-login),{" "}
+            <strong className="text-foreground">Auth CRM</strong> (logged-in),{" "}
+            <strong className="text-foreground">Transfer</strong>, and{" "}
+            <strong className="text-foreground">Disputes</strong>. The three
+            authenticated agents form a routing triangle — each can hand off to
+            either of the other two.
           </li>
           <li>
             <Pill color="bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
-              Turn-taking
+              HandoffTo tool
             </Pill>
-            Agents hand off dynamically — after Transfer completes, control
-            returns to CRM which confirms the result. All turns stream as a
-            single continuous SSE response, with a{" "}
-            <code className="font-mono text-[10px]">break</code> event marking
-            each switch.
+            Agents hand off via a typed{" "}
+            <code className="font-mono text-[10px]">HandoffTo</code> tool. The
+            LLM receives a JSON schema with a{" "}
+            <code className="font-mono text-[10px]">Literal</code> enum of valid
+            target names — it can only route to agents explicitly wired at
+            startup, never to an arbitrary string. All turns stream as a single
+            SSE response; a{" "}
+            <code className="font-mono text-[10px]">break</code> event marks each
+            agent switch.
+          </li>
+          <li>
+            <Pill color="bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300">
+              Isolated memory
+            </Pill>
+            Each agent has its <strong className="text-foreground">own</strong>{" "}
+            <code className="font-mono text-[10px]">InMemoryConversationStore</code>.
+            A shared store would expose the full cross-agent history to every
+            agent, causing them to misread prior handoff summaries as new
+            instructions and trigger the wrong handoff.
           </li>
           <li>
             <Pill color="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
@@ -99,13 +117,6 @@ export function DemoInfoPanel() {
             </Pill>
             Requests are <strong className="text-foreground">HMAC-SHA256 signed</strong>{" "}
             by the Next.js proxy — the browser never touches the secret key.
-          </li>
-          <li>
-            <Pill color="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
-              Memory
-            </Pill>
-            Conversation history persists across requests via{" "}
-            <code className="font-mono text-[10px]">InMemoryConversationStore</code>.
           </li>
           <li>
             <Pill color="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
@@ -134,15 +145,15 @@ export function DemoInfoPanel() {
           <li>
             <strong className="text-foreground">BankingChatController</strong> sets
             a <code className="font-mono text-[10px]">ContextVar</code> and runs{" "}
-            <code className="font-mono text-[10px]">AgentRunner.run()</code>.
+            <code className="font-mono text-[10px]">AgentRunner.run()</code> for
+            the currently active agent.
           </li>
           <li>
-            The <strong className="text-foreground">CRM Agent</strong> may hand
-            off to the <strong className="text-foreground">Transfer Agent</strong>{" "}
-            via a tool call. The controller runs agents in a loop until the
-            active agent stabilises — so when Transfer hands back to CRM, CRM
-            receives a handoff summary and responds before the stream closes.
-            Both agents read identity from{" "}
+            When an agent calls{" "}
+            <code className="font-mono text-[10px]">HandoffTo</code>, the
+            controller picks up the new active agent and loops — passing only a
+            short handoff summary as context, not the full prior history. Each
+            agent reads identity from{" "}
             <code className="font-mono text-[10px]">ExecutionContext</code>,
             never from LLM-generated text.
           </li>
@@ -175,6 +186,15 @@ export function DemoInfoPanel() {
             <span>
               <em>&ldquo;Transfer $200 to Bob&rdquo;</em>{" "}
               — watch the live activity feed and Bob&rsquo;s balance update instantly.
+            </span>
+          </li>
+          <li className="flex gap-1.5">
+            <span className="text-muted-foreground/60">→</span>
+            <span>
+              <em>&ldquo;I want to dispute a recent charge&rdquo;</em>{" "}
+              — the CRM agent hands off to the{" "}
+              <strong className="text-foreground">Disputes Agent</strong>, which
+              investigates your transaction history.
             </span>
           </li>
           <li className="flex gap-1.5">

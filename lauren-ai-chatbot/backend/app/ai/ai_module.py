@@ -1,14 +1,24 @@
-"""AIModule — wires LLMModule and all three banking agents.
+"""AIModule — wires LLMModule and all four banking agents.
 
 Agent architecture
 ------------------
-Three English-only agents in distinct modules:
+Four English-only agents in distinct modules:
 
   UnauthenticatedCRMAgent  (UnauthCRMRunner)     — public, pre-login
   AuthenticatedCRMAgent    (AuthCRMRunner)        — logged-in customers
   BankTransferAgent        (TransferAgentRunner)  — fund transfers
+  DisputesAgent            (DisputesAgentRunner)  — disputes & fraud
 
-CheckAuthenticationTool is shared across all three agents.  It is owned and
+Conversation isolation
+----------------------
+Each agent receives its **own** ``InMemoryConversationStore``.  Sharing a
+single store means every agent sees the complete cross-agent turn history,
+which causes confusion — agents may re-read prior handoff summaries as
+instructions and trigger the wrong ``HandoffTo`` call.  Isolated stores
+ensure each agent only sees the turns it handled directly; the handoff
+summary passed via ``HandoffTo`` provides just the right amount of context.
+
+CheckAuthenticationTool is shared across all four agents.  It is owned and
 exported by CheckAuthModule; each AgentModule imports CheckAuthModule and uses
 shared_tools=[CheckAuthenticationTool] to prevent duplicate DI registration.
 
@@ -39,11 +49,13 @@ from app.ai.active_agent_module import ActiveAgentModule
 from app.ai.active_agent_store import ActiveAgentStore
 from app.ai.approval_module import ApprovalModule
 from app.ai.auth_crm_agent import AuthenticatedCRMAgent
-from app.ai.banking_delegation import AuthCRMRunner, TransferAgentRunner, UnauthCRMRunner
+from app.ai.banking_delegation import AuthCRMRunner, DisputesAgentRunner, TransferAgentRunner, UnauthCRMRunner
+from app.ai.banking_tools import GetBalanceTool, GetTransactionHistoryTool
 from app.ai.check_auth_module import CheckAuthModule
 from app.ai.check_auth_tool import CheckAuthenticationTool
 from app.ai.handoff_tool import HandoffTo
 from app.ai.signals import signal_bus
+from app.ai.disputes_agent import DisputesAgent
 from app.ai.transfer_agent import BankTransferAgent
 from app.ai.unauth_crm_agent import UnauthenticatedCRMAgent
 from app.ai.chat_banking_controller import BankingChatController
@@ -64,13 +76,20 @@ _llm_config = LLMConfig(
 
 LLMProvider = LLMModule.for_root(_llm_config)
 
-# ── 2. Conversation store ────────────────────────────────────────────────────
+# ── 2. Conversation stores ───────────────────────────────────────────────────
+#
+# One store per agent.  A shared store would expose the full cross-agent turn
+# history to every agent, causing agents to re-read prior handoff summaries as
+# instructions and trigger the wrong HandoffTo call.
 
-_conversation_store = InMemoryConversationStore()
+_unauth_store   = InMemoryConversationStore()
+_auth_crm_store = InMemoryConversationStore()
+_transfer_store = InMemoryConversationStore()
+_disputes_store = InMemoryConversationStore()
 
 # ── 3. Agent + tool wiring ──────────────────────────────────────────────────
 #
-# Three AgentModule instances — one per agent.  CheckAuthenticationTool is
+# Four AgentModule instances — one per agent.  CheckAuthenticationTool is
 # shared; it is owned by CheckAuthModule and imported via shared_tools= to
 # prevent ModuleExportViolation.
 
@@ -79,28 +98,38 @@ _UnauthCRMModule = AgentModule.for_root(
     imports=[LLMProvider, CheckAuthModule, WsModule, ActiveAgentModule],
     shared_tools=[CheckAuthenticationTool],
     signals=signal_bus,
-    conversation_store=_conversation_store,
+    conversation_store=_unauth_store,
     runner=UnauthCRMRunner,
 )
 
 _AuthCRMModule = AgentModule.for_root(
     agents=[AuthenticatedCRMAgent],
-    tools=[HandoffTo[BankTransferAgent, UnauthenticatedCRMAgent]],
+    tools=[HandoffTo[BankTransferAgent, DisputesAgent, UnauthenticatedCRMAgent]],
     imports=[LLMProvider, CheckAuthModule, BankingModule, WsModule, ActiveAgentModule],
-    shared_tools=[CheckAuthenticationTool],
+    shared_tools=[CheckAuthenticationTool, GetBalanceTool, GetTransactionHistoryTool],
     signals=signal_bus,
-    conversation_store=_conversation_store,
+    conversation_store=_auth_crm_store,
     runner=AuthCRMRunner,
 )
 
 _TransferModule = AgentModule.for_root(
     agents=[BankTransferAgent],
-    tools=[HandoffTo[UnauthenticatedCRMAgent, AuthenticatedCRMAgent]],
+    tools=[HandoffTo[AuthenticatedCRMAgent, DisputesAgent, UnauthenticatedCRMAgent]],
     imports=[LLMProvider, CheckAuthModule, BankingModule, ApprovalModule, WsModule, ActiveAgentModule],
     shared_tools=[CheckAuthenticationTool],
     signals=signal_bus,
-    conversation_store=_conversation_store,
+    conversation_store=_transfer_store,
     runner=TransferAgentRunner,
+)
+
+_DisputesModule = AgentModule.for_root(
+    agents=[DisputesAgent],
+    tools=[HandoffTo[BankTransferAgent, AuthenticatedCRMAgent]],
+    imports=[LLMProvider, CheckAuthModule, BankingModule, WsModule, ActiveAgentModule],
+    shared_tools=[CheckAuthenticationTool, GetBalanceTool, GetTransactionHistoryTool],
+    signals=signal_bus,
+    conversation_store=_disputes_store,
+    runner=DisputesAgentRunner,
 )
 
 # ── 4. CostTracker ──────────────────────────────────────────────────────────
@@ -124,6 +153,7 @@ _cost_tracker_provider = use_value(provide=CostTracker, value=_cost_tracker)
         _UnauthCRMModule,
         _AuthCRMModule,
         _TransferModule,
+        _DisputesModule,
         BankingModule,
         CryptoModule,
         WsModule,
@@ -137,6 +167,7 @@ _cost_tracker_provider = use_value(provide=CostTracker, value=_cost_tracker)
         UnauthenticatedCRMAgent,
         AuthenticatedCRMAgent,
         BankTransferAgent,
+        DisputesAgent,
         ActiveAgentStore,
         CostTracker,
     ],
@@ -145,4 +176,4 @@ _cost_tracker_provider = use_value(provide=CostTracker, value=_cost_tracker)
     ],
 )
 class AIModule:
-    """Provides banking AI services: three agents, three runners, and cost tracker."""
+    """Provides banking AI services: four agents, four runners, and cost tracker."""

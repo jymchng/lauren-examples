@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from lauren import module, use_value
 
+from app.ai.banking_tools import GetBalanceTool, GetTransactionHistoryTool
 from app.banking.bank_db import BankDatabase
 from app.banking.banking_controller import BankingController
 
@@ -12,9 +13,9 @@ from app.banking.banking_controller import BankingController
 
 
 @module(
-    providers=[BankDatabase],
-    exports=[BankDatabase],
+    providers=[BankDatabase, GetBalanceTool, GetTransactionHistoryTool],
+    exports=[BankDatabase, GetBalanceTool, GetTransactionHistoryTool],
     controllers=[BankingController],
 )
 class BankingModule:
-    """Provides the in-memory bank database and account REST endpoints."""
+    """Provides the in-memory bank database, account REST endpoints, and shared read tools."""

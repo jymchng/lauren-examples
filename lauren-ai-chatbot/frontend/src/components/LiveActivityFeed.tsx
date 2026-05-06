@@ -5,6 +5,8 @@
  *
  * Renders a scrollable list of the most recent events:
  * • tool_started / tool_complete  — which tool ran and how long it took
+ *   (handoff_to tool calls are suppressed — agent_handoff provides richer context)
+ * • agent_handoff                 — which agent handed off to which
  * • token_usage                   — tokens consumed and estimated cost
  * • run_complete                  — summary of the full agent run
  *
@@ -13,7 +15,7 @@
  */
 
 import { useEffect, useRef } from "react";
-import { Zap, Wrench, CheckCircle, XCircle, Activity } from "lucide-react";
+import { Zap, Wrench, CheckCircle, XCircle, Activity, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { WsEvent } from "@/hooks/useWebSocket";
 
@@ -37,10 +39,20 @@ function formatToolName(raw: string): string {
   return raw.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+function abbreviateAgent(name: string): string {
+  return name
+    .replace("Banking CRM Agent (Authenticated)", "Auth CRM")
+    .replace("Banking CRM Agent (Public)", "Public CRM")
+    .replace("Banking Transfer Agent", "Transfer")
+    .replace("Banking Disputes Agent", "Disputes");
+}
+
 function EventRow({ entry }: { entry: ActivityEntry }) {
   const { event } = entry;
 
   if (event.type === "tool_started") {
+    // Handoff tool calls are represented by the richer agent_handoff event
+    if (String(event.tool_name) === "handoff_to") return null;
     return (
       <div className="flex items-center gap-2 py-1">
         <Wrench className="h-3 w-3 text-blue-500 flex-shrink-0" />
@@ -56,6 +68,7 @@ function EventRow({ entry }: { entry: ActivityEntry }) {
   }
 
   if (event.type === "tool_complete") {
+    if (String(event.tool_name) === "handoff_to") return null;
     const success = Boolean(event.success);
     const durationMs = Number(event.duration_ms);
     return (
@@ -120,6 +133,22 @@ function EventRow({ entry }: { entry: ActivityEntry }) {
     );
   }
 
+  if (event.type === "agent_handoff") {
+    const from = abbreviateAgent(String(event.from_agent));
+    const to = abbreviateAgent(String(event.to_agent));
+    return (
+      <div className="flex items-center gap-2 py-1 border-t border-border/50 mt-0.5">
+        <ArrowRight className="h-3 w-3 text-violet-500 flex-shrink-0" />
+        <span className="text-[11px] text-muted-foreground">
+          Handoff{" "}
+          <span className="font-medium text-foreground">{from}</span>
+          {" → "}
+          <span className="font-medium text-foreground">{to}</span>
+        </span>
+      </div>
+    );
+  }
+
   return null;
 }
 
@@ -136,7 +165,7 @@ export function LiveActivityFeed({
 
   const visibleEntries = entries
     .filter((e) =>
-      ["tool_started", "tool_complete", "token_usage", "run_complete"].includes(
+      ["tool_started", "tool_complete", "token_usage", "run_complete", "agent_handoff"].includes(
         e.event.type
       )
     )

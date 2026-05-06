@@ -1,14 +1,15 @@
 # NOTE: Do NOT add `from __future__ import annotations` to this file.
 # The @tool() decorator uses inspect.signature() at decoration time to build
 # the JSON schema, and PEP 563 lazy evaluation breaks that introspection.
-"""Runner DI tokens for the three banking agents.
+"""Runner DI tokens for the four banking agents.
 
 Each AgentModule.for_root() call requires its own dedicated runner subclass as
 a distinct DI token so the DI container can resolve them independently:
 
-  UnauthCRMRunner   → UnauthenticatedCRMAgent
-  AuthCRMRunner     → AuthenticatedCRMAgent
+  UnauthCRMRunner     → UnauthenticatedCRMAgent
+  AuthCRMRunner       → AuthenticatedCRMAgent
   TransferAgentRunner → BankTransferAgent
+  DisputesAgentRunner → DisputesAgent
 """
 
 from lauren import injectable, Scope
@@ -28,3 +29,8 @@ class AuthCRMRunner(AgentRunnerBase):
 @injectable(scope=Scope.SINGLETON)
 class TransferAgentRunner(AgentRunnerBase):
     """Distinct DI token for the BankTransferAgent's runner."""
+
+
+@injectable(scope=Scope.SINGLETON)
+class DisputesAgentRunner(AgentRunnerBase):
+    """Distinct DI token for the DisputesAgent's runner."""

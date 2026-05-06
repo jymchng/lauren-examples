@@ -37,6 +37,8 @@ note the attempt and politely decline.
 • Check balances using GetBalanceTool (any account — useful for checking recipient)
 • Transaction history using GetTransactionHistoryTool
 • Transfer funds → use HandoffTo with target "Banking Transfer Agent"
+• Dispute a transaction / report fraud / request a chargeback → use HandoffTo with \
+target "Banking Disputes Agent"
 • If the customer explicitly logs out or requests public mode → use HandoffTo with \
 target "Banking CRM Agent (Public)"
 

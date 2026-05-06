@@ -31,9 +31,10 @@ from lauren import EventStream, Json, ServerSentEvent, controller, post, use_gua
 from lauren.types import ExecutionContext
 
 from app.ai.active_agent_store import ActiveAgentStore
-from app.ai.agent_names import AUTH_CRM_AGENT_NAME, TRANSFER_AGENT_NAME, UNAUTH_CRM_AGENT_NAME
+from app.ai.agent_names import AUTH_CRM_AGENT_NAME, DISPUTES_AGENT_NAME, TRANSFER_AGENT_NAME, UNAUTH_CRM_AGENT_NAME
 from app.ai.auth_crm_agent import AuthenticatedCRMAgent
-from app.ai.banking_delegation import AuthCRMRunner, TransferAgentRunner, UnauthCRMRunner
+from app.ai.banking_delegation import AuthCRMRunner, DisputesAgentRunner, TransferAgentRunner, UnauthCRMRunner
+from app.ai.disputes_agent import DisputesAgent
 from app.ai.transfer_agent import BankTransferAgent
 from app.ai.unauth_crm_agent import UnauthenticatedCRMAgent
 from app.banking.bank_db import BankDatabase
@@ -62,10 +63,12 @@ class BankingChatController:
         unauth_runner: UnauthCRMRunner,
         auth_runner: AuthCRMRunner,
         transfer_runner: TransferAgentRunner,
+        disputes_runner: DisputesAgentRunner,
         db: BankDatabase,
         unauth_agent: UnauthenticatedCRMAgent,
         auth_agent: AuthenticatedCRMAgent,
         transfer_agent: BankTransferAgent,
+        disputes_agent: DisputesAgent,
         active_agent_store: ActiveAgentStore,
     ) -> None:
         self._db = db
@@ -74,6 +77,7 @@ class BankingChatController:
             UNAUTH_CRM_AGENT_NAME: (unauth_agent,   unauth_runner),
             AUTH_CRM_AGENT_NAME:   (auth_agent,     auth_runner),
             TRANSFER_AGENT_NAME:   (transfer_agent, transfer_runner),
+            DISPUTES_AGENT_NAME:   (disputes_agent, disputes_runner),
         }
         self._default_unauth = (unauth_agent, unauth_runner)
         self._default_auth   = (auth_agent,   auth_runner)

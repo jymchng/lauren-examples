@@ -151,6 +151,10 @@ export default function Home() {
       setPendingApproval(event as unknown as TransferApprovalRequest);
     } else if (event.type === "agent_handoff") {
       setCurrentAgent((event as unknown as AgentHandoffEvent).to_agent);
+      activityCounterRef.current += 1;
+      setActivityEntries((prev) =>
+        [...prev, { id: activityCounterRef.current, event, timestamp: Date.now() }].slice(-50)
+      );
     } else {
       activityCounterRef.current += 1;
       setActivityEntries((prev) =>
