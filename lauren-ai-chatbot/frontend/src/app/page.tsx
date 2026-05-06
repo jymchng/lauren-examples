@@ -54,7 +54,7 @@ export default function Home() {
   const [pendingApproval, setPendingApproval] = useState<TransferApprovalRequest | null>(null);
 
   // ── Active agent state ───────────────────────────────────────────────
-  const [currentAgent, setCurrentAgent] = useState<string>("Banking CRM Agent");
+  const [currentAgent, setCurrentAgent] = useState<string>("Banking CRM Agent (English)");
 
   // ── UI state ────────────────────────────────────────────────────────
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -136,7 +136,7 @@ export default function Home() {
 
   // Reset active agent when user switches
   useEffect(() => {
-    setCurrentAgent("Banking CRM Agent");
+    setCurrentAgent("Banking CRM Agent (English)");
   }, [selectedUserId]);
 
   useEffect(() => {
