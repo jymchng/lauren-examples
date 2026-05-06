@@ -59,6 +59,12 @@ class ApprovalService:
             return False
         if meta["user_id"] != user_id:
             return False
+        # Results in a no-op if the future is already done (e.g. due to timeout or prior resolution),
+        # ensuring idempotence and preventing cross-user forgery.
+        # The agent will see the same result regardless of whether the approval was resolved before or after the timeout, preventing
+        # race conditions.
+        if fut.done():
+            return False
         if not fut.done():
             fut.set_result(approved)
         async with self._lock:

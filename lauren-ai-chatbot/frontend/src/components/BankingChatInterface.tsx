@@ -237,30 +237,12 @@ export function BankingChatInterface({
       {/* Message list */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto min-h-0 px-4 py-4">
         {isEmpty && (
-          <div className="flex flex-col items-center justify-center min-h-[200px] gap-4">
+          <div className="flex flex-col items-center justify-center min-h-[200px]">
             <p className="text-muted-foreground text-sm">
               {isPublic
                 ? "Hi! How can I help you today?"
                 : `Hi ${userName}! How can I help you today?`}
             </p>
-            <div className="flex flex-wrap justify-center gap-2">
-              {suggestions.map((s) => (
-                <button
-                  key={s}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    handleSubmit(
-                      { preventDefault: () => {} } as React.FormEvent,
-                      s
-                    );
-                  }}
-                  disabled={streaming}
-                  className="text-xs px-3 py-1.5 rounded-full border border-border bg-card hover:bg-accent/50 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
           </div>
         )}
 
@@ -280,6 +262,25 @@ export function BankingChatInterface({
 
       {/* Input bar */}
       <div className="p-4 border-t border-border bg-card/50">
+        {/* Quick-action suggestions — always visible */}
+        <div className="flex flex-wrap gap-1.5 mb-2">
+          {suggestions.map((s) => (
+            <button
+              key={s}
+              onClick={(e) => {
+                e.preventDefault();
+                handleSubmit(
+                  { preventDefault: () => {} } as React.FormEvent,
+                  s
+                );
+              }}
+              disabled={streaming}
+              className="text-xs px-3 py-1 rounded-full border border-border bg-card hover:bg-accent/50 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {s}
+            </button>
+          ))}
+        </div>
         <form onSubmit={handleSubmit} className="flex gap-2 items-end">
           <textarea
             ref={inputRef}

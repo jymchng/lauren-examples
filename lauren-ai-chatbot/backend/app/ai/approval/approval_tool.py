@@ -102,10 +102,14 @@ class ApprovalTool:
         )
 
         try:
-            timeout = 120.0
+            timeout = 5
             approved = await asyncio.wait_for(asyncio.shield(fut), timeout=timeout)
         except asyncio.TimeoutError:
-            return {"approved": False, "reason": f"Approval is NOT granted within the {timeout}-second timeout window."}
+            return {
+                "approved": False,
+                "reason": f"Approval is NOT granted within the {timeout}-second timeout window."
+                + " This may be because the user is trying to approve the transfer on multiple devices, or because of a network issue.",
+            }
 
         if approved:
             if ctx.agent_context is not None:

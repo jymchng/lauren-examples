@@ -125,6 +125,23 @@ export function DemoInfoPanel() {
             A WebSocket stream pushes live tool calls, token usage, and balance
             changes to the browser as they happen.
           </li>
+          <li>
+            <Pill color="bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300">
+              Human-in-the-loop
+            </Pill>
+            Transfers require explicit user approval before executing.{" "}
+            <strong className="text-foreground">ApprovalTool</strong> blocks the
+            agentic loop with an{" "}
+            <code className="font-mono text-[10px]">asyncio.Future</code>, sends a{" "}
+            <code className="font-mono text-[10px]">transfer_approval_request</code>{" "}
+            event over WebSocket, and waits (up to 120 s) for the user to click{" "}
+            <strong className="text-foreground">Confirm</strong> or{" "}
+            <strong className="text-foreground">Cancel</strong> in the approval
+            dialog. The Transfer Agent only proceeds if a signed one-shot approval
+            token is present in{" "}
+            <code className="font-mono text-[10px]">AgentContext.metadata</code>;
+            the token is consumed on first use, preventing replay.
+          </li>
         </ul>
       </Section>
 
