@@ -8,5 +8,11 @@ imports).  A single source of truth keeps display names consistent across the
 backend and WebSocket events.
 """
 
-CRM_AGENT_NAME: str = "Banking CRM Agent"
-TRANSFER_AGENT_NAME: str = "Banking Transfer Agent"
+CRM_AGENT_NAME_EN: str = "Banking CRM Agent (English)"
+CRM_AGENT_NAME_ZH: str = "Banking CRM Agent (Mandarin)"
+TRANSFER_AGENT_NAME_EN: str = "Banking Transfer Agent (English)"
+TRANSFER_AGENT_NAME_ZH: str = "Banking Transfer Agent (Mandarin)"
+
+# Backward-compatible aliases — English is the default language.
+CRM_AGENT_NAME = CRM_AGENT_NAME_EN
+TRANSFER_AGENT_NAME = TRANSFER_AGENT_NAME_EN

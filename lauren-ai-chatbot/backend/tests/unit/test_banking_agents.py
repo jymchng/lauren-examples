@@ -1,49 +1,88 @@
-"""Unit tests for BankingCRMAgent and BankingTransferAgent metadata and configuration."""
+"""Unit tests for all four banking agents' metadata and configuration."""
 
 from __future__ import annotations
 
 import pytest
 
-from app.ai.crm_agent import BankingCRMAgent
-from app.ai.transfer_agent import BankingTransferAgent
+from app.ai.crm_agent import BankingCRMAgentEN
+from app.ai.crm_agent_zh import BankingCRMAgentZH
+from app.ai.transfer_agent import BankingTransferAgentEN
+from app.ai.transfer_agent_zh import BankingTransferAgentZH
 from lauren_ai import USE_GUARDRAILS_META
 
 
-class TestBankingCRMAgent:
+class TestBankingCRMAgentEN:
     def test_has_agent_meta(self):
-        assert hasattr(BankingCRMAgent, "__lauren_ai_agent__")
+        assert hasattr(BankingCRMAgentEN, "__lauren_ai_agent__")
 
     def test_agent_meta_has_system_prompt(self):
-        meta = getattr(BankingCRMAgent, "__lauren_ai_agent__")
+        meta = getattr(BankingCRMAgentEN, "__lauren_ai_agent__")
         assert meta.system
 
     def test_agent_meta_has_max_turns(self):
-        meta = getattr(BankingCRMAgent, "__lauren_ai_agent__")
+        meta = getattr(BankingCRMAgentEN, "__lauren_ai_agent__")
         assert meta.config.max_turns is not None
 
     def test_system_prompt_mentions_securebank(self):
-        meta = getattr(BankingCRMAgent, "__lauren_ai_agent__")
+        meta = getattr(BankingCRMAgentEN, "__lauren_ai_agent__")
         assert "SecureBank" in meta.system or "bank" in meta.system.lower()
 
     def test_has_use_tools_meta(self):
-        assert hasattr(BankingCRMAgent, "__lauren_ai_use_tools__") or hasattr(BankingCRMAgent, "__lauren_ai_agent__")
+        assert hasattr(BankingCRMAgentEN, "__lauren_ai_use_tools__") or hasattr(BankingCRMAgentEN, "__lauren_ai_agent__")
 
 
-class TestBankingTransferAgent:
+class TestBankingCRMAgentZH:
     def test_has_agent_meta(self):
-        assert hasattr(BankingTransferAgent, "__lauren_ai_agent__")
+        assert hasattr(BankingCRMAgentZH, "__lauren_ai_agent__")
+
+    def test_agent_meta_has_system_prompt(self):
+        meta = getattr(BankingCRMAgentZH, "__lauren_ai_agent__")
+        assert meta.system
+
+    def test_agent_meta_has_max_turns(self):
+        meta = getattr(BankingCRMAgentZH, "__lauren_ai_agent__")
+        assert meta.config.max_turns is not None
+
+    def test_system_prompt_mentions_securebank(self):
+        meta = getattr(BankingCRMAgentZH, "__lauren_ai_agent__")
+        assert "秀科" in meta.system or "bank" in meta.system.lower()
+
+    def test_has_use_tools_meta(self):
+        assert hasattr(BankingCRMAgentZH, "__lauren_ai_use_tools__") or hasattr(BankingCRMAgentZH, "__lauren_ai_agent__")
+
+
+class TestBankingTransferAgentEN:
+    def test_has_agent_meta(self):
+        assert hasattr(BankingTransferAgentEN, "__lauren_ai_agent__")
 
     def test_agent_meta_has_model(self):
-        meta = getattr(BankingTransferAgent, "__lauren_ai_agent__")
+        meta = getattr(BankingTransferAgentEN, "__lauren_ai_agent__")
         assert hasattr(meta, "model")
 
     def test_agent_meta_has_system_prompt(self):
-        meta = getattr(BankingTransferAgent, "__lauren_ai_agent__")
+        meta = getattr(BankingTransferAgentEN, "__lauren_ai_agent__")
         assert meta.config.system_prompt
 
     def test_system_prompt_mentions_transfer(self):
-        meta = getattr(BankingTransferAgent, "__lauren_ai_agent__")
+        meta = getattr(BankingTransferAgentEN, "__lauren_ai_agent__")
         assert "transfer" in meta.system.lower() or "bank" in meta.system.lower()
+
+
+class TestBankingTransferAgentZH:
+    def test_has_agent_meta(self):
+        assert hasattr(BankingTransferAgentZH, "__lauren_ai_agent__")
+
+    def test_agent_meta_has_model(self):
+        meta = getattr(BankingTransferAgentZH, "__lauren_ai_agent__")
+        assert hasattr(meta, "model")
+
+    def test_agent_meta_has_system_prompt(self):
+        meta = getattr(BankingTransferAgentZH, "__lauren_ai_agent__")
+        assert meta.config.system_prompt
+
+    def test_system_prompt_mentions_transfer(self):
+        meta = getattr(BankingTransferAgentZH, "__lauren_ai_agent__")
+        assert "转账" in meta.system or "bank" in meta.system.lower()
 
 
 class TestBankingToolMetas:

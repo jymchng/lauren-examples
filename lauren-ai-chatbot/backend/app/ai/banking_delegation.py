@@ -3,20 +3,17 @@
 # the JSON schema, and PEP 563 lazy evaluation breaks that introspection.
 """DelegateToBankingTransfer — CRM tool that routes transfer tasks to the Transfer Agent.
 
-``TransferAgentRunner`` is a dedicated runner subclass used as a distinct DI
-token for the Transfer Agent's runner.  This breaks the circular dependency:
+Each language pair has its own runner subclass as a distinct DI token so the
+DI container can resolve them independently:
 
-  AgentRunner (CRM) → DelegateToBankingTransfer → TransferAgentRunner
-
-Because the two runner tokens are distinct the DI container can resolve
-``TransferAgentRunner`` independently of ``AgentRunner`` — no cycle.
+  AgentRunner (CRM EN) → DelegateToBankingTransfer → TransferAgentRunnerEN
+  AgentRunner (CRM ZH) → DelegateToBankingTransfer → TransferAgentRunnerZH
 
 Security
 --------
 The authenticated identity is read from ``ctx.execution_context`` (set
 server-side by the HTTP controller) and forwarded verbatim to the Transfer
-Agent's runner call.  The LLM never supplies or influences the identity — it
-only describes the task (recipient, amount, etc.).
+Agent's runner call.
 """
 
 import logging
@@ -24,33 +21,40 @@ import logging
 from lauren import injectable, Scope
 from lauren_ai import AgentRunnerBase, ToolContext, tool
 
-from app.ai.transfer_agent import BankingTransferAgent
+from app.ai.transfer_agent import BankingTransferAgentEN
 
 
 logger = logging.getLogger(__name__)
 
 
 @injectable(scope=Scope.SINGLETON)
-class TransferAgentRunner(AgentRunnerBase):
-    """Distinct DI token for the Transfer Agent's runner.
+class TransferAgentRunnerEN(AgentRunnerBase):
+    """Distinct DI token for the English Transfer Agent's runner."""
 
-    Passed via ``runner=TransferAgentRunner`` to ``AgentModule.for_root()``
-    so that ``DelegateToBankingTransfer`` can inject it by concrete type,
-    avoiding ambiguity with the CRM ``AgentRunner``.
-    """
 
 @injectable(scope=Scope.SINGLETON)
-class CRMAgentRunner(AgentRunnerBase):
-    """Distinct DI token for the CRM Agent's runner.
+class TransferAgentRunnerZH(AgentRunnerBase):
+    """Distinct DI token for the Mandarin Transfer Agent's runner."""
 
-    Passed via ``runner=CRMAgentRunner`` to ``AgentModule.for_root()``
-    so that ``BankingChatController`` can inject the CRM runner by concrete type.
-    """
+
+@injectable(scope=Scope.SINGLETON)
+class CRMAgentRunnerEN(AgentRunnerBase):
+    """Distinct DI token for the English CRM Agent's runner."""
+
+
+@injectable(scope=Scope.SINGLETON)
+class CRMAgentRunnerZH(AgentRunnerBase):
+    """Distinct DI token for the Mandarin CRM Agent's runner."""
+
+
+# Backward-compatible aliases.
+TransferAgentRunner = TransferAgentRunnerEN
+CRMAgentRunner = CRMAgentRunnerEN
 
 
 @tool()
 class DelegateToBankingTransfer:
-    """Delegate a banking transfer task to the Transfer Agent.
+    """Delegate a banking transfer task to the English Transfer Agent.
 
     Use this for any request involving:
     - Transferring funds between accounts
@@ -66,18 +70,14 @@ class DelegateToBankingTransfer:
 
     def __init__(
         self,
-        transfer_agent: BankingTransferAgent,
-        runner: TransferAgentRunner,     # was: AgentRunner (Protocol) — ambiguous
+        transfer_agent: BankingTransferAgentEN,
+        runner: TransferAgentRunnerEN,
     ) -> None:
         self._transfer_agent = transfer_agent
         self._runner = runner
 
-
     async def run(self, ctx: ToolContext, task: str) -> dict:
         logger.debug("DelegateToBankingTransfer.run: task_len=%d", len(task))
-        # Forward the server-side execution context intact so that the
-        # Transfer Agent's TransferFundsTool can read
-        # ctx.execution_context["user_id"] without relying on the LLM.
         response = await self._runner.run(
             self._transfer_agent,
             task,
