@@ -57,7 +57,7 @@ function Pill({ color, children }: { color: string; children: React.ReactNode })
 
 export function DemoInfoPanel() {
   return (
-    <div className="hidden lg:flex flex-col gap-2">
+    <div className="flex flex-col gap-2">
       {/* About */}
       <Section title="About this demo" defaultOpen>
         <p>
@@ -82,6 +82,16 @@ export function DemoInfoPanel() {
             A <strong className="text-foreground">CRM Agent</strong> handles
             conversation and delegates fund transfers to a separate{" "}
             <strong className="text-foreground">Transfer Agent</strong>.
+          </li>
+          <li>
+            <Pill color="bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
+              Turn-taking
+            </Pill>
+            Agents hand off dynamically — after Transfer completes, control
+            returns to CRM which confirms the result. All turns stream as a
+            single continuous SSE response, with a{" "}
+            <code className="font-mono text-[10px]">break</code> event marking
+            each switch.
           </li>
           <li>
             <Pill color="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
@@ -127,9 +137,12 @@ export function DemoInfoPanel() {
             <code className="font-mono text-[10px]">AgentRunner.run()</code>.
           </li>
           <li>
-            The <strong className="text-foreground">CRM Agent</strong> may delegate
-            to the <strong className="text-foreground">Transfer Agent</strong> via
-            a tool call. Both agents read identity from{" "}
+            The <strong className="text-foreground">CRM Agent</strong> may hand
+            off to the <strong className="text-foreground">Transfer Agent</strong>{" "}
+            via a tool call. The controller runs agents in a loop until the
+            active agent stabilises — so when Transfer hands back to CRM, CRM
+            receives a handoff summary and responds before the stream closes.
+            Both agents read identity from{" "}
             <code className="font-mono text-[10px]">ExecutionContext</code>,
             never from LLM-generated text.
           </li>
