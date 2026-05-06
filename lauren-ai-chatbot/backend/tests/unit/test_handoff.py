@@ -1,4 +1,4 @@
-"""Unit tests for ActiveAgentStore and the consolidated HandoffBackTo tool."""
+"""Unit tests for ActiveAgentStore and the generic HandoffTo tool."""
 
 from __future__ import annotations
 
@@ -132,32 +132,42 @@ def _make_tool_ctx(
 
 
 # ---------------------------------------------------------------------------
-# HandoffBackTo — CRM → Transfer direction
+# HandoffTo — CRM → Transfer direction
 # ---------------------------------------------------------------------------
 
 
 class TestHandoffToTransfer:
     @pytest.mark.asyncio
     async def test_sets_transfer_agent_in_store(self):
-        from app.ai.handoff_tool import HandoffBackTo
+        from app.ai.handoff_tool import HandoffTo
+        from app.ai.transfer_agent import BankingTransferAgent
 
         store = ActiveAgentStore()
         fwd = _FakeForwarder()
-        tool = HandoffBackTo(active_agent_store=store, event_forwarder=fwd)
-        result = await tool.run(_make_tool_ctx("conv-1", CRM_AGENT_NAME, user_id="alice"), summary="Customer wants a transfer")
+        tool = HandoffTo[BankingTransferAgent](active_agent_store=store, event_forwarder=fwd)
+        result = await tool.run(
+            _make_tool_ctx("conv-1", CRM_AGENT_NAME, user_id="alice"),
+            to_agent=TRANSFER_AGENT_NAME,
+            summary="Customer wants a transfer",
+        )
 
         assert store.get("conv-1", CRM_AGENT_NAME) == TRANSFER_AGENT_NAME
-        assert result["status"] == "handed_back"
+        assert result["status"] == "handed_off"
         assert result["to_agent"] == TRANSFER_AGENT_NAME
 
     @pytest.mark.asyncio
     async def test_emits_agent_handoff_event(self):
-        from app.ai.handoff_tool import HandoffBackTo
+        from app.ai.handoff_tool import HandoffTo
+        from app.ai.transfer_agent import BankingTransferAgent
 
         store = ActiveAgentStore()
         fwd = _FakeForwarder()
-        tool = HandoffBackTo(active_agent_store=store, event_forwarder=fwd)
-        await tool.run(_make_tool_ctx("conv-1", CRM_AGENT_NAME, user_id="alice"), summary="Transfer needed")
+        tool = HandoffTo[BankingTransferAgent](active_agent_store=store, event_forwarder=fwd)
+        await tool.run(
+            _make_tool_ctx("conv-1", CRM_AGENT_NAME, user_id="alice"),
+            to_agent=TRANSFER_AGENT_NAME,
+            summary="Transfer needed",
+        )
 
         assert len(fwd.sent) == 1
         user_id, payload = fwd.sent[0]
@@ -169,12 +179,17 @@ class TestHandoffToTransfer:
     @pytest.mark.asyncio
     async def test_no_event_without_user_id(self):
         """Event is always sent; user_id="" when execution_context has no user."""
-        from app.ai.handoff_tool import HandoffBackTo
+        from app.ai.handoff_tool import HandoffTo
+        from app.ai.transfer_agent import BankingTransferAgent
 
         store = ActiveAgentStore()
         fwd = _FakeForwarder()
-        tool = HandoffBackTo(active_agent_store=store, event_forwarder=fwd)
-        await tool.run(_make_tool_ctx("conv-1", CRM_AGENT_NAME, user_id=None), summary="No user")
+        tool = HandoffTo[BankingTransferAgent](active_agent_store=store, event_forwarder=fwd)
+        await tool.run(
+            _make_tool_ctx("conv-1", CRM_AGENT_NAME, user_id=None),
+            to_agent=TRANSFER_AGENT_NAME,
+            summary="No user",
+        )
 
         assert len(fwd.sent) == 1
         user_id, payload = fwd.sent[0]
@@ -183,59 +198,79 @@ class TestHandoffToTransfer:
 
     @pytest.mark.asyncio
     async def test_no_store_update_without_conversation_id(self):
-        from app.ai.handoff_tool import HandoffBackTo
+        from app.ai.handoff_tool import HandoffTo
+        from app.ai.transfer_agent import BankingTransferAgent
 
         store = ActiveAgentStore()
         fwd = _FakeForwarder()
-        tool = HandoffBackTo(active_agent_store=store, event_forwarder=fwd)
-        await tool.run(_make_tool_ctx("", CRM_AGENT_NAME, user_id="alice"), summary="No conv id")
+        tool = HandoffTo[BankingTransferAgent](active_agent_store=store, event_forwarder=fwd)
+        await tool.run(
+            _make_tool_ctx("", CRM_AGENT_NAME, user_id="alice"),
+            to_agent=TRANSFER_AGENT_NAME,
+            summary="No conv id",
+        )
 
         assert store.get("", CRM_AGENT_NAME) == CRM_AGENT_NAME
 
+    @pytest.mark.asyncio
+    async def test_invalid_to_agent_returns_error(self):
+        """Passing an agent name not in _target_names returns an error dict."""
+        from app.ai.handoff_tool import HandoffTo
+        from app.ai.transfer_agent import BankingTransferAgent
+
+        store = ActiveAgentStore()
+        fwd = _FakeForwarder()
+        tool = HandoffTo[BankingTransferAgent](active_agent_store=store, event_forwarder=fwd)
+        result = await tool.run(
+            _make_tool_ctx("conv-1", CRM_AGENT_NAME, user_id="alice"),
+            to_agent="NonExistentAgent",
+            summary="Should fail",
+        )
+
+        assert "error" in result
+        assert store.get("conv-1", CRM_AGENT_NAME) == CRM_AGENT_NAME  # store untouched
+        assert len(fwd.sent) == 0  # no event emitted
+
 
 # ---------------------------------------------------------------------------
-# HandoffBackTo — Transfer → CRM direction
+# HandoffTo — Transfer → CRM direction
 # ---------------------------------------------------------------------------
 
 
 class TestHandoffBackToCRM:
     @pytest.mark.asyncio
-    async def test_resets_store_to_crm(self):
-        from app.ai.handoff_tool import HandoffBackTo
+    async def test_sets_store_to_crm(self):
+        from app.ai.handoff_tool import HandoffTo
+        from app.ai.crm_agent import BankingCRMAgent
 
-        tok = current_user_id.set("alice")
-        try:
-            store = ActiveAgentStore()
-            store.set("conv-1", TRANSFER_AGENT_NAME)
-            fwd = _FakeForwarder()
-            tool = HandoffBackTo(active_agent_store=store, event_forwarder=fwd)
-            result = await tool.run(
-                _make_tool_ctx("conv-1", TRANSFER_AGENT_NAME),
-                summary="Transfer of $100 to bob completed",
-            )
-        finally:
-            current_user_id.reset(tok)
+        store = ActiveAgentStore()
+        store.set("conv-1", TRANSFER_AGENT_NAME)
+        fwd = _FakeForwarder()
+        tool = HandoffTo[BankingCRMAgent](active_agent_store=store, event_forwarder=fwd)
+        result = await tool.run(
+            _make_tool_ctx("conv-1", TRANSFER_AGENT_NAME),
+            to_agent=CRM_AGENT_NAME,
+            summary="Transfer of $100 to bob completed",
+        )
 
         assert store.get("conv-1", CRM_AGENT_NAME) == CRM_AGENT_NAME
-        assert result["status"] == "handed_back"
+        assert result["status"] == "handed_off"
         assert result["to_agent"] == CRM_AGENT_NAME
 
     @pytest.mark.asyncio
     async def test_emits_reverse_handoff_event(self):
-        from app.ai.handoff_tool import HandoffBackTo
+        from app.ai.handoff_tool import HandoffTo
+        from app.ai.crm_agent import BankingCRMAgent
 
-        tok = current_user_id.set("alice")
-        try:
-            store = ActiveAgentStore()
-            store.set("conv-1", TRANSFER_AGENT_NAME)
-            fwd = _FakeForwarder()
-            tool = HandoffBackTo(active_agent_store=store, event_forwarder=fwd)
-            await tool.run(
-                _make_tool_ctx("conv-1", TRANSFER_AGENT_NAME),
-                summary="Done",
-            )
-        finally:
-            current_user_id.reset(tok)
+        store = ActiveAgentStore()
+        store.set("conv-1", TRANSFER_AGENT_NAME)
+        fwd = _FakeForwarder()
+        tool = HandoffTo[BankingCRMAgent](active_agent_store=store, event_forwarder=fwd)
+        await tool.run(
+            _make_tool_ctx("conv-1", TRANSFER_AGENT_NAME),
+            to_agent=CRM_AGENT_NAME,
+            summary="Done",
+        )
 
         assert len(fwd.sent) == 1
         user_id, payload = fwd.sent[0]
@@ -246,39 +281,39 @@ class TestHandoffBackToCRM:
 
     @pytest.mark.asyncio
     async def test_to_crm_writes_summary_to_store(self):
-        from app.ai.handoff_tool import HandoffBackTo
+        from app.ai.handoff_tool import HandoffTo
+        from app.ai.crm_agent import BankingCRMAgent
 
-        tok = current_user_id.set("alice")
-        try:
-            store = ActiveAgentStore()
-            store.set("conv-1", TRANSFER_AGENT_NAME)
-            fwd = _FakeForwarder()
-            tool = HandoffBackTo(active_agent_store=store, event_forwarder=fwd)
-            await tool.run(
-                _make_tool_ctx("conv-1", TRANSFER_AGENT_NAME),
-                summary="Transfer of $100 to Bob completed",
-            )
-        finally:
-            current_user_id.reset(tok)
+        store = ActiveAgentStore()
+        store.set("conv-1", TRANSFER_AGENT_NAME)
+        fwd = _FakeForwarder()
+        tool = HandoffTo[BankingCRMAgent](active_agent_store=store, event_forwarder=fwd)
+        await tool.run(
+            _make_tool_ctx("conv-1", TRANSFER_AGENT_NAME),
+            to_agent=CRM_AGENT_NAME,
+            summary="Transfer of $100 to Bob completed",
+        )
 
         assert store.pop_pending_summary("conv-1") == "Transfer of $100 to Bob completed"
 
 
 # ---------------------------------------------------------------------------
-# HandoffBackTo — CRM → Transfer direction: summary written to store
+# HandoffTo — CRM → Transfer: summary written to store
 # ---------------------------------------------------------------------------
 
 
 class TestHandoffToTransferSummary:
     @pytest.mark.asyncio
     async def test_to_transfer_writes_summary_to_store(self):
-        from app.ai.handoff_tool import HandoffBackTo
+        from app.ai.handoff_tool import HandoffTo
+        from app.ai.transfer_agent import BankingTransferAgent
 
         store = ActiveAgentStore()
         fwd = _FakeForwarder()
-        tool = HandoffBackTo(active_agent_store=store, event_forwarder=fwd)
+        tool = HandoffTo[BankingTransferAgent](active_agent_store=store, event_forwarder=fwd)
         await tool.run(
             _make_tool_ctx("conv-1", CRM_AGENT_NAME, user_id="alice"),
+            to_agent=TRANSFER_AGENT_NAME,
             summary="Customer wants to transfer $50 to charlie",
         )
 
@@ -286,11 +321,104 @@ class TestHandoffToTransferSummary:
 
     @pytest.mark.asyncio
     async def test_no_summary_without_conversation_id(self):
-        from app.ai.handoff_tool import HandoffBackTo
+        from app.ai.handoff_tool import HandoffTo
+        from app.ai.transfer_agent import BankingTransferAgent
 
         store = ActiveAgentStore()
         fwd = _FakeForwarder()
-        tool = HandoffBackTo(active_agent_store=store, event_forwarder=fwd)
-        await tool.run(_make_tool_ctx("", CRM_AGENT_NAME, user_id="alice"), summary="ignored")
+        tool = HandoffTo[BankingTransferAgent](active_agent_store=store, event_forwarder=fwd)
+        await tool.run(
+            _make_tool_ctx("", CRM_AGENT_NAME, user_id="alice"),
+            to_agent=TRANSFER_AGENT_NAME,
+            summary="ignored",
+        )
 
         assert store.pop_pending_summary("") == ""
+
+
+# ---------------------------------------------------------------------------
+# HandoffTo — __class_getitem__ caching and N-target behaviour
+# ---------------------------------------------------------------------------
+
+
+class TestHandoffToClassGetitem:
+    def test_same_subscript_returns_cached_class(self):
+        from app.ai.handoff_tool import HandoffTo
+        from app.ai.crm_agent import BankingCRMAgent
+
+        cls_a = HandoffTo[BankingCRMAgent]
+        cls_b = HandoffTo[BankingCRMAgent]
+        assert cls_a is cls_b
+
+    def test_different_subscripts_are_distinct_classes(self):
+        from app.ai.handoff_tool import HandoffTo
+        from app.ai.crm_agent import BankingCRMAgent
+        from app.ai.transfer_agent import BankingTransferAgent
+
+        cls_crm = HandoffTo[BankingCRMAgent]
+        cls_transfer = HandoffTo[BankingTransferAgent]
+        assert cls_crm is not cls_transfer
+
+    def test_single_target_has_correct_target_names(self):
+        from app.ai.handoff_tool import HandoffTo
+        from app.ai.transfer_agent import BankingTransferAgent
+
+        cls = HandoffTo[BankingTransferAgent]
+        assert cls._target_names == (TRANSFER_AGENT_NAME,)
+
+    def test_multi_target_has_all_names(self):
+        from app.ai.handoff_tool import HandoffTo
+        from app.ai.crm_agent import BankingCRMAgent
+        from app.ai.transfer_agent import BankingTransferAgent
+
+        cls = HandoffTo[BankingCRMAgent, BankingTransferAgent]
+        assert CRM_AGENT_NAME in cls._target_names
+        assert TRANSFER_AGENT_NAME in cls._target_names
+        assert len(cls._target_names) == 2
+
+    @pytest.mark.asyncio
+    async def test_multi_target_can_handoff_to_either(self):
+        from app.ai.handoff_tool import HandoffTo
+        from app.ai.crm_agent import BankingCRMAgent
+        from app.ai.transfer_agent import BankingTransferAgent
+
+        store = ActiveAgentStore()
+        fwd = _FakeForwarder()
+        tool = HandoffTo[BankingCRMAgent, BankingTransferAgent](
+            active_agent_store=store, event_forwarder=fwd
+        )
+
+        result = await tool.run(
+            _make_tool_ctx("conv-1", CRM_AGENT_NAME, user_id="alice"),
+            to_agent=TRANSFER_AGENT_NAME,
+            summary="Handing to transfer",
+        )
+        assert result["status"] == "handed_off"
+        assert store.get("conv-1", CRM_AGENT_NAME) == TRANSFER_AGENT_NAME
+
+        result2 = await tool.run(
+            _make_tool_ctx("conv-1", TRANSFER_AGENT_NAME, user_id="alice"),
+            to_agent=CRM_AGENT_NAME,
+            summary="Back to CRM",
+        )
+        assert result2["status"] == "handed_off"
+        assert store.get("conv-1", TRANSFER_AGENT_NAME) == CRM_AGENT_NAME
+
+    @pytest.mark.asyncio
+    async def test_invalid_agent_returns_error_without_side_effects(self):
+        from app.ai.handoff_tool import HandoffTo
+        from app.ai.crm_agent import BankingCRMAgent
+
+        store = ActiveAgentStore()
+        fwd = _FakeForwarder()
+        tool = HandoffTo[BankingCRMAgent](active_agent_store=store, event_forwarder=fwd)
+
+        result = await tool.run(
+            _make_tool_ctx("conv-1", TRANSFER_AGENT_NAME, user_id="alice"),
+            to_agent="UnknownAgent",
+            summary="Bad call",
+        )
+
+        assert "error" in result
+        assert len(fwd.sent) == 0
+        assert store.get("conv-1", CRM_AGENT_NAME) == CRM_AGENT_NAME

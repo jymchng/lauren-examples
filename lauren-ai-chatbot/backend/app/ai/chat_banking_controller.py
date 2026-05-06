@@ -76,6 +76,10 @@ class BankingChatController:
         self._crm_agent = crm_agent
         self._transfer_agent = transfer_agent
         self._active_agent_store = active_agent_store
+        self._agent_registry: dict[str, tuple] = {
+            CRM_AGENT_NAME: (crm_agent, runner),
+            TRANSFER_AGENT_NAME: (transfer_agent, transfer_runner),
+        }
 
     @post("/chat")
     async def stream(self, body: Json[ChatRequest], exec_ctx: ExecutionContext) -> EventStream:
@@ -127,9 +131,7 @@ class BankingChatController:
         full_prompt = auth_prefix + raw_message
 
         def _resolve_agent(active: str):
-            if active == TRANSFER_AGENT_NAME:
-                return self._transfer_agent, self._transfer_runner
-            return self._crm_agent, self._runner
+            return self._agent_registry.get(active, (self._crm_agent, self._runner))
 
         async def generate():
             # Pin the user_id in the ContextVar so signal handlers emitted

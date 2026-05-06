@@ -50,7 +50,7 @@ from app.ai.approval_tool import ApprovalTool
 from app.ai.banking_delegation import DelegateToBankingTransfer, TransferAgentRunner, CRMAgentRunner
 from app.ai.banking_tools import GetBalanceTool, GetTransactionHistoryTool, TransferFundsTool
 from app.ai.crm_agent import BankingCRMAgent
-from app.ai.handoff_tool import HandoffBackTo
+from app.ai.handoff_tool import HandoffTo
 from app.ai.signals import signal_bus
 from app.ai.transfer_agent import BankingTransferAgent
 from app.ai.chat_banking_controller import BankingChatController
@@ -86,7 +86,7 @@ _TransferAgentModule = AgentModule.for_root(
     tools=[
         ApprovalTool,
         TransferFundsTool,
-        HandoffBackTo[BankingCRMAgent],
+        HandoffTo[BankingCRMAgent],
     ],
     imports=[LLMProvider, BankingModule, ApprovalModule, WsModule, ActiveAgentModule],
     signals=signal_bus,
@@ -101,7 +101,7 @@ _CRMAgentModule = AgentModule.for_root(
     tools=[
         GetBalanceTool,
         GetTransactionHistoryTool,
-        HandoffBackTo[BankingTransferAgent],
+        HandoffTo[BankingTransferAgent],
     ],
     imports=[LLMProvider, _TransferAgentModule, BankingModule, WsModule, ActiveAgentModule],
     signals=signal_bus,

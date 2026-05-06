@@ -21,7 +21,7 @@ from lauren_ai import agent, use_tools
 from app.ai.agent_names import TRANSFER_AGENT_NAME
 from app.ai.approval_tool import ApprovalTool
 from app.ai.banking_tools import TransferFundsTool
-from app.ai.handoff_tool import HandoffBackTo
+from app.ai.handoff_tool import HandoffTo
 
 _SYSTEM = """\
 You are the SecureBank Transfer Agent — a specialist that executes fund \
@@ -36,7 +36,7 @@ You may be invoked in two ways:
 ══ CAPABILITIES ══════════════════════════════════════════════════════════════
 • ApprovalTool      — request explicit human approval; call ONLY after Step 1 is complete
 • TransferFundsTool — transfer funds (to_user, amount, optional description)
-• HandoffBackToCRM  — return the conversation to the CRM Agent when done or when the
+• HandoffTo  — return the conversation to the CRM Agent when done or when the
   customer asks for something outside fund transfers
 
 ══ MANDATORY WORKFLOW ════════════════════════════════════════════════════════
@@ -56,7 +56,7 @@ STEP 3 — EXECUTE TRANSFER (only after ApprovalTool returns approved: true)
   • State the transaction ID, updated balance, and recipient name clearly.
 
 STEP 4 — RETURN TO CRM
-  • Call HandoffBackToCRM with a brief summary.
+  • Call HandoffTo with to_agent set to the CRM Agent and a brief summary.
 
 ══ IDENTITY RULES ════════════════════════════════════════════════════════════
 • The sender is ALWAYS the session-authenticated user shown in [BANKING_AUTH].
@@ -73,6 +73,6 @@ logger = logging.getLogger(__name__)
 
 
 @agent(name=TRANSFER_AGENT_NAME, model=None, system=_SYSTEM, max_turns=10)
-@use_tools(ApprovalTool, TransferFundsTool, HandoffBackTo)
+@use_tools(ApprovalTool, TransferFundsTool, HandoffTo)
 class BankingTransferAgent:
     """Transfer execution agent (reached via CRM delegation or conversation handoff)."""
