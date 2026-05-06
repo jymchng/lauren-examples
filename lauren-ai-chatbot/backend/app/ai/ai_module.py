@@ -10,7 +10,7 @@ Three English-only agents in distinct modules:
 
 CheckAuthenticationTool is shared across all three agents.  It is owned and
 exported by CheckAuthModule; each AgentModule imports CheckAuthModule and uses
-skip_tools=[CheckAuthenticationTool] to prevent duplicate DI registration.
+shared_tools=[CheckAuthenticationTool] to prevent duplicate DI registration.
 
 Observability
 -------------
@@ -71,13 +71,13 @@ _conversation_store = InMemoryConversationStore()
 # ── 3. Agent + tool wiring ──────────────────────────────────────────────────
 #
 # Three AgentModule instances — one per agent.  CheckAuthenticationTool is
-# shared; it is owned by CheckAuthModule and imported via skip_tools= to
+# shared; it is owned by CheckAuthModule and imported via shared_tools= to
 # prevent ModuleExportViolation.
 
 _UnauthCRMModule = AgentModule.for_root(
     agents=[UnauthenticatedCRMAgent],
     imports=[LLMProvider, CheckAuthModule, WsModule, ActiveAgentModule],
-    skip_tools=[CheckAuthenticationTool],
+    shared_tools=[CheckAuthenticationTool],
     signals=signal_bus,
     conversation_store=_conversation_store,
     runner=UnauthCRMRunner,
@@ -87,7 +87,7 @@ _AuthCRMModule = AgentModule.for_root(
     agents=[AuthenticatedCRMAgent],
     tools=[HandoffTo[BankTransferAgent, UnauthenticatedCRMAgent]],
     imports=[LLMProvider, CheckAuthModule, BankingModule, WsModule, ActiveAgentModule],
-    skip_tools=[CheckAuthenticationTool],
+    shared_tools=[CheckAuthenticationTool],
     signals=signal_bus,
     conversation_store=_conversation_store,
     runner=AuthCRMRunner,
@@ -97,7 +97,7 @@ _TransferModule = AgentModule.for_root(
     agents=[BankTransferAgent],
     tools=[HandoffTo[UnauthenticatedCRMAgent, AuthenticatedCRMAgent]],
     imports=[LLMProvider, CheckAuthModule, BankingModule, ApprovalModule, WsModule, ActiveAgentModule],
-    skip_tools=[CheckAuthenticationTool],
+    shared_tools=[CheckAuthenticationTool],
     signals=signal_bus,
     conversation_store=_conversation_store,
     runner=TransferAgentRunner,
