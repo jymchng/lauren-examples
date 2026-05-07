@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import logging
 import os
+from pathlib import Path
 
 from lauren import module, use_value
 from lauren_ai import (
@@ -43,6 +44,13 @@ from lauren_ai import (
     ModelCallComplete,
     default_pricing_table,
 )
+from lauren_ai._knowledge import (
+    KnowledgeBase,
+    KnowledgeSource,
+    SentenceChunker,
+    TextLoader,
+)
+from lauren_ai._memory._vector import InMemoryVectorStore
 from lauren_ai._module import AgentModule, LLMService
 
 from app.ai.agents.auth_crm_agent import AuthenticatedCRMAgent
@@ -87,6 +95,8 @@ _auth_crm_store = InMemoryConversationStore()
 _transfer_store = InMemoryConversationStore()
 _disputes_store = InMemoryConversationStore()
 
+_PUBLIC_KB_DIR = Path(__file__).parent / "knowledge"
+
 # ── 3. Agent + tool wiring ──────────────────────────────────────────────────
 #
 # Four AgentModule instances — one per agent.  CheckAuthenticationTool is
@@ -100,6 +110,24 @@ _UnauthCRMModule = AgentModule.for_root(
     signals=signal_bus,
     conversation_store=_unauth_store,
     runner=UnauthCRMRunner,
+    # RAG: products, rates, fees, branch hours, account-opening, security.
+    # Auto-attaches a ``search_public_info`` tool to the agent's schema —
+    # no @use_tools declaration needed.  Content lives in
+    # ``app/ai/knowledge/*.md``.
+    knowledge=[
+        KnowledgeSource(
+            kb=KnowledgeBase(
+                store=InMemoryVectorStore(),
+                chunker=SentenceChunker(max_chunk_size=600),
+            ),
+            tool_name="search_public_info",
+            top_k=3,
+            loaders=[
+                TextLoader(str(p))
+                for p in sorted(_PUBLIC_KB_DIR.glob("*.md"))
+            ],
+        ),
+    ],
 )
 
 _AuthCRMModule = AgentModule.for_root(

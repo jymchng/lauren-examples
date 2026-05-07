@@ -168,7 +168,24 @@ if modal.is_local():
             f"pip install --quiet --no-deps /opt/wheels/{_backend_whl.name}",
         )
 
-        # ── 5. Make main.py importable at runtime ────────────────────────
+        # ── 5. Knowledge-base content ───────────────────────────────────
+        #
+        # ``app/ai/knowledge/`` holds the public-info markdown files used by
+        # the unauthenticated CRM agent's RAG tool.  The directory has no
+        # ``__init__.py`` (it is content, not code), so setuptools does NOT
+        # include the ``.md`` files in the backend wheel.  Copy them into
+        # the installed ``app.ai.knowledge`` location so
+        # ``Path(__file__).parent / "knowledge"`` resolves at runtime.
+        #
+        # The destination path is tied to ``python_version="3.12"`` above —
+        # if the Python version changes, update this path to match.
+        .add_local_dir(
+            str(_HERE / "app" / "ai" / "knowledge"),
+            "/usr/local/lib/python3.12/site-packages/app/ai/knowledge",
+            copy=True,
+        )
+
+        # ── 6. Make main.py importable at runtime ────────────────────────
         .env({"PYTHONPATH": "/backend"})
     )
 else:

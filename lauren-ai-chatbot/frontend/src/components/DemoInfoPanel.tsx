@@ -142,6 +142,23 @@ export function DemoInfoPanel() {
             <code className="font-mono text-[10px]">AgentContext.metadata</code>;
             the token is consumed on first use, preventing replay.
           </li>
+          <li>
+            <Pill color="bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300">
+              Knowledge Base
+            </Pill>
+            The <strong className="text-foreground">Public CRM Agent</strong>{" "}
+            answers product / rate / fee / branch-hour questions via{" "}
+            <strong className="text-foreground">RAG</strong> over a curated
+            knowledge base, not training-data confabulation. Wired through{" "}
+            <code className="font-mono text-[10px]">
+              AgentModule.for_root(knowledge=…)
+            </code>{" "}
+            — the framework auto-attaches a{" "}
+            <code className="font-mono text-[10px]">search_public_info</code>{" "}
+            tool to the agent's schema. Every retrieval shows up in the Live
+            Activity panel and as a persistent &ldquo;📚 Looked up bank
+            info&rdquo; bubble in the chat thread.
+          </li>
         </ul>
       </Section>
 

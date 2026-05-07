@@ -98,19 +98,39 @@ def _schema_names(runner, agent_cls) -> list[str]:
 
 
 class TestUnauthCRMSchemaMatchesDeclared:
-    """`@use_tools(CheckAuthenticationTool, HandoffToAuthenticatedCRM)`."""
+    """`@use_tools(CheckAuthenticationTool, HandoffToAuthenticatedCRM)`.
 
-    def test_schemas_match_declared(self, app):
+    Plus the module-level ``search_public_info`` knowledge tool auto-attached
+    by ``AgentModule.for_root(knowledge=...)``.
+    """
+
+    def test_schemas_include_all_declared(self, app):
+        """Every @use_tools-declared tool MUST be in the schema list."""
         from app.ai.agents.banking_delegation import UnauthCRMRunner
         from app.ai.agents.unauth_crm_agent import UnauthenticatedCRMAgent
 
         runner = _resolve_runner(app, UnauthCRMRunner)
-        actual = sorted(_schema_names(runner, UnauthenticatedCRMAgent))
-        expected = sorted(_expected_tool_names(UnauthenticatedCRMAgent))
+        actual = set(_schema_names(runner, UnauthenticatedCRMAgent))
+        expected = set(_expected_tool_names(UnauthenticatedCRMAgent))
 
-        assert actual == expected, f"UnauthCRM schemas {actual!r} != declared {expected!r}"
+        missing = expected - actual
+        assert not missing, f"UnauthCRM missing declared tools: {sorted(missing)}"
 
-    def test_schema_count_matches_declared(self, app):
+    def test_schema_includes_search_public_info_from_knowledge_param(self, app):
+        """The KB tool injected via ``knowledge=`` must appear in the schema."""
+        from app.ai.agents.banking_delegation import UnauthCRMRunner
+        from app.ai.agents.unauth_crm_agent import UnauthenticatedCRMAgent
+
+        runner = _resolve_runner(app, UnauthCRMRunner)
+        actual = set(_schema_names(runner, UnauthenticatedCRMAgent))
+
+        assert "search_public_info" in actual, (
+            f"UnauthCRM schema missing knowledge-derived tool "
+            f"'search_public_info'.  Actual: {sorted(actual)}"
+        )
+
+    def test_schema_count_matches_declared_plus_knowledge(self, app):
+        """Exactly: 2 declared tools + 1 knowledge-derived tool = 3 total."""
         from app.ai.agents.banking_delegation import UnauthCRMRunner
         from app.ai.agents.unauth_crm_agent import UnauthenticatedCRMAgent
 
@@ -118,7 +138,8 @@ class TestUnauthCRMSchemaMatchesDeclared:
         actual = _schema_names(runner, UnauthenticatedCRMAgent)
         expected = _expected_tool_names(UnauthenticatedCRMAgent)
 
-        assert len(actual) == len(expected) == 2
+        assert len(expected) == 2
+        assert len(actual) == 3  # 2 from @use_tools + search_public_info from knowledge=
 
 
 class TestAuthCRMSchemaMatchesDeclared:
@@ -267,6 +288,40 @@ class TestNoCrossAgentLeakage:
         forbidden = {self._APPROVAL_TOOL, self._TRANSFER_FUNDS_TOOL}
         leaked = names & forbidden
         assert not leaked, f"Disputes agent leaked write tools: {sorted(leaked)}"
+
+    # ─── Knowledge-base isolation ──────────────────────────────────────────
+    _SEARCH_PUBLIC_INFO_TOOL = "search_public_info"
+
+    def test_auth_crm_does_not_see_search_public_info(self, app):
+        """``search_public_info`` is attached to the UNAUTH module only."""
+        from app.ai.agents.auth_crm_agent import AuthenticatedCRMAgent
+        from app.ai.agents.banking_delegation import AuthCRMRunner
+
+        runner = _resolve_runner(app, AuthCRMRunner)
+        names = set(_schema_names(runner, AuthenticatedCRMAgent))
+        assert self._SEARCH_PUBLIC_INFO_TOOL not in names, (
+            "AuthCRM agent leaked the unauth module's knowledge-base tool"
+        )
+
+    def test_transfer_does_not_see_search_public_info(self, app):
+        from app.ai.agents.banking_delegation import TransferAgentRunner
+        from app.ai.agents.transfer_agent import BankTransferAgent
+
+        runner = _resolve_runner(app, TransferAgentRunner)
+        names = set(_schema_names(runner, BankTransferAgent))
+        assert self._SEARCH_PUBLIC_INFO_TOOL not in names, (
+            "Transfer agent leaked the unauth module's knowledge-base tool"
+        )
+
+    def test_disputes_does_not_see_search_public_info(self, app):
+        from app.ai.agents.banking_delegation import DisputesAgentRunner
+        from app.ai.agents.disputes_agent import DisputesAgent
+
+        runner = _resolve_runner(app, DisputesAgentRunner)
+        names = set(_schema_names(runner, DisputesAgent))
+        assert self._SEARCH_PUBLIC_INFO_TOOL not in names, (
+            "Disputes agent leaked the unauth module's knowledge-base tool"
+        )
 
 
 # ---------------------------------------------------------------------------

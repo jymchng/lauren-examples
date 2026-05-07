@@ -46,6 +46,7 @@ const TOOL_LABELS: Record<string, string> = {
   check_authentication_tool: "Verifying your session",
   transfer_funds_tool: "Executing the transfer",
   approval_tool: "Awaiting your approval",
+  search_public_info: "Looking up bank info",
 };
 
 function toolHintFor(name: string): string {
@@ -60,6 +61,7 @@ const TOOL_PAST_LABELS: Record<string, string> = {
   get_transaction_history_tool: "📜 Fetched transaction history",
   transfer_funds_tool: "💸 Executed the transfer",
   approval_tool: "🛂 Awaited your approval",
+  search_public_info: "📚 Looked up bank info",
 };
 
 // Tools deliberately NOT surfaced as a persistent bubble:
