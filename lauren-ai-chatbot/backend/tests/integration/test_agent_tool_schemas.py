@@ -1,4 +1,4 @@
-# NOTE: Do NOT add `from __future__ import annotations` to this file.
+
 """Regression tests for agent tool-schema isolation.
 
 Each `@agent()`-decorated class in the banking chatbot declares its tool set
@@ -28,6 +28,7 @@ os.environ.setdefault("PAYLOAD_SECRET", "tool-schema-test-secret")
 os.environ.setdefault("OPENROUTER_API_KEY", "dummy-key-for-tests")
 os.environ.setdefault("PORT", "8004")
 
+from lauren_ai import AgentRunner  # noqa: E402
 from lauren_ai._agents import AGENT_META, USE_TOOLS_META  # noqa: E402
 from lauren_ai._tools import TOOL_META  # noqa: E402
 
@@ -106,10 +107,9 @@ class TestUnauthCRMSchemaMatchesDeclared:
 
     def test_schemas_include_all_declared(self, app):
         """Every @use_tools-declared tool MUST be in the schema list."""
-        from app.ai.agents.banking_delegation import UnauthCRMRunner
         from app.ai.agents.unauth_crm_agent import UnauthenticatedCRMAgent
 
-        runner = _resolve_runner(app, UnauthCRMRunner)
+        runner = _resolve_runner(app, AgentRunner[UnauthenticatedCRMAgent])
         actual = set(_schema_names(runner, UnauthenticatedCRMAgent))
         expected = set(_expected_tool_names(UnauthenticatedCRMAgent))
 
@@ -118,10 +118,9 @@ class TestUnauthCRMSchemaMatchesDeclared:
 
     def test_schema_includes_search_public_info_from_knowledge_param(self, app):
         """The KB tool injected via ``knowledge=`` must appear in the schema."""
-        from app.ai.agents.banking_delegation import UnauthCRMRunner
         from app.ai.agents.unauth_crm_agent import UnauthenticatedCRMAgent
 
-        runner = _resolve_runner(app, UnauthCRMRunner)
+        runner = _resolve_runner(app, AgentRunner[UnauthenticatedCRMAgent])
         actual = set(_schema_names(runner, UnauthenticatedCRMAgent))
 
         assert "search_public_info" in actual, (
@@ -131,10 +130,9 @@ class TestUnauthCRMSchemaMatchesDeclared:
 
     def test_schema_count_matches_declared_plus_knowledge(self, app):
         """Exactly: 2 declared tools + 1 knowledge-derived tool = 3 total."""
-        from app.ai.agents.banking_delegation import UnauthCRMRunner
         from app.ai.agents.unauth_crm_agent import UnauthenticatedCRMAgent
 
-        runner = _resolve_runner(app, UnauthCRMRunner)
+        runner = _resolve_runner(app, AgentRunner[UnauthenticatedCRMAgent])
         actual = _schema_names(runner, UnauthenticatedCRMAgent)
         expected = _expected_tool_names(UnauthenticatedCRMAgent)
 
@@ -147,9 +145,7 @@ class TestAuthCRMSchemaMatchesDeclared:
 
     def test_schemas_match_declared(self, app):
         from app.ai.agents.auth_crm_agent import AuthenticatedCRMAgent
-        from app.ai.agents.banking_delegation import AuthCRMRunner
-
-        runner = _resolve_runner(app, AuthCRMRunner)
+        runner = _resolve_runner(app, AgentRunner[AuthenticatedCRMAgent])
         actual = sorted(_schema_names(runner, AuthenticatedCRMAgent))
         expected = sorted(_expected_tool_names(AuthenticatedCRMAgent))
 
@@ -157,9 +153,7 @@ class TestAuthCRMSchemaMatchesDeclared:
 
     def test_schema_count_matches_declared(self, app):
         from app.ai.agents.auth_crm_agent import AuthenticatedCRMAgent
-        from app.ai.agents.banking_delegation import AuthCRMRunner
-
-        runner = _resolve_runner(app, AuthCRMRunner)
+        runner = _resolve_runner(app, AgentRunner[AuthenticatedCRMAgent])
         actual = _schema_names(runner, AuthenticatedCRMAgent)
         expected = _expected_tool_names(AuthenticatedCRMAgent)
 
@@ -170,20 +164,18 @@ class TestTransferSchemaMatchesDeclared:
     """`@use_tools(ApprovalTool, TransferFundsTool, CheckAuthenticationTool, HandoffTo)`."""
 
     def test_schemas_match_declared(self, app):
-        from app.ai.agents.banking_delegation import TransferAgentRunner
         from app.ai.agents.transfer_agent import BankTransferAgent
 
-        runner = _resolve_runner(app, TransferAgentRunner)
+        runner = _resolve_runner(app, AgentRunner[BankTransferAgent])
         actual = sorted(_schema_names(runner, BankTransferAgent))
         expected = sorted(_expected_tool_names(BankTransferAgent))
 
         assert actual == expected, f"Transfer schemas {actual!r} != declared {expected!r}"
 
     def test_schema_count_matches_declared(self, app):
-        from app.ai.agents.banking_delegation import TransferAgentRunner
         from app.ai.agents.transfer_agent import BankTransferAgent
 
-        runner = _resolve_runner(app, TransferAgentRunner)
+        runner = _resolve_runner(app, AgentRunner[BankTransferAgent])
         actual = _schema_names(runner, BankTransferAgent)
         expected = _expected_tool_names(BankTransferAgent)
 
@@ -194,20 +186,18 @@ class TestDisputesSchemaMatchesDeclared:
     """`@use_tools(GetBalanceTool, GetTransactionHistoryTool, CheckAuthenticationTool, HandoffTo)`."""
 
     def test_schemas_match_declared(self, app):
-        from app.ai.agents.banking_delegation import DisputesAgentRunner
         from app.ai.agents.disputes_agent import DisputesAgent
 
-        runner = _resolve_runner(app, DisputesAgentRunner)
+        runner = _resolve_runner(app, AgentRunner[DisputesAgent])
         actual = sorted(_schema_names(runner, DisputesAgent))
         expected = sorted(_expected_tool_names(DisputesAgent))
 
         assert actual == expected, f"Disputes schemas {actual!r} != declared {expected!r}"
 
     def test_schema_count_matches_declared(self, app):
-        from app.ai.agents.banking_delegation import DisputesAgentRunner
         from app.ai.agents.disputes_agent import DisputesAgent
 
-        runner = _resolve_runner(app, DisputesAgentRunner)
+        runner = _resolve_runner(app, AgentRunner[DisputesAgent])
         actual = _schema_names(runner, DisputesAgent)
         expected = _expected_tool_names(DisputesAgent)
 
@@ -235,10 +225,9 @@ class TestNoCrossAgentLeakage:
     _GET_TRANSACTION_HISTORY_TOOL = "get_transaction_history_tool"
 
     def test_unauth_crm_does_not_see_balance_or_transactions(self, app):
-        from app.ai.agents.banking_delegation import UnauthCRMRunner
         from app.ai.agents.unauth_crm_agent import UnauthenticatedCRMAgent
 
-        runner = _resolve_runner(app, UnauthCRMRunner)
+        runner = _resolve_runner(app, AgentRunner[UnauthenticatedCRMAgent])
         names = set(_schema_names(runner, UnauthenticatedCRMAgent))
 
         forbidden = {
@@ -253,9 +242,7 @@ class TestNoCrossAgentLeakage:
     def test_auth_crm_does_not_see_approval_or_transfer(self, app):
         """AuthCRM hands off to TransferAgent — it must NOT call those tools itself."""
         from app.ai.agents.auth_crm_agent import AuthenticatedCRMAgent
-        from app.ai.agents.banking_delegation import AuthCRMRunner
-
-        runner = _resolve_runner(app, AuthCRMRunner)
+        runner = _resolve_runner(app, AgentRunner[AuthenticatedCRMAgent])
         names = set(_schema_names(runner, AuthenticatedCRMAgent))
 
         forbidden = {self._APPROVAL_TOOL, self._TRANSFER_FUNDS_TOOL}
@@ -264,10 +251,9 @@ class TestNoCrossAgentLeakage:
 
     def test_transfer_does_not_see_balance_or_transaction_history(self, app):
         """Transfer agent only executes transfers — it must NOT see read-only banking tools."""
-        from app.ai.agents.banking_delegation import TransferAgentRunner
         from app.ai.agents.transfer_agent import BankTransferAgent
 
-        runner = _resolve_runner(app, TransferAgentRunner)
+        runner = _resolve_runner(app, AgentRunner[BankTransferAgent])
         names = set(_schema_names(runner, BankTransferAgent))
 
         forbidden = {
@@ -279,10 +265,9 @@ class TestNoCrossAgentLeakage:
 
     def test_disputes_does_not_see_approval_or_transfer(self, app):
         """Disputes investigates — it must NOT have direct access to write tools."""
-        from app.ai.agents.banking_delegation import DisputesAgentRunner
         from app.ai.agents.disputes_agent import DisputesAgent
 
-        runner = _resolve_runner(app, DisputesAgentRunner)
+        runner = _resolve_runner(app, AgentRunner[DisputesAgent])
         names = set(_schema_names(runner, DisputesAgent))
 
         forbidden = {self._APPROVAL_TOOL, self._TRANSFER_FUNDS_TOOL}
@@ -295,29 +280,25 @@ class TestNoCrossAgentLeakage:
     def test_auth_crm_does_not_see_search_public_info(self, app):
         """``search_public_info`` is attached to the UNAUTH module only."""
         from app.ai.agents.auth_crm_agent import AuthenticatedCRMAgent
-        from app.ai.agents.banking_delegation import AuthCRMRunner
-
-        runner = _resolve_runner(app, AuthCRMRunner)
+        runner = _resolve_runner(app, AgentRunner[AuthenticatedCRMAgent])
         names = set(_schema_names(runner, AuthenticatedCRMAgent))
         assert self._SEARCH_PUBLIC_INFO_TOOL not in names, (
             "AuthCRM agent leaked the unauth module's knowledge-base tool"
         )
 
     def test_transfer_does_not_see_search_public_info(self, app):
-        from app.ai.agents.banking_delegation import TransferAgentRunner
         from app.ai.agents.transfer_agent import BankTransferAgent
 
-        runner = _resolve_runner(app, TransferAgentRunner)
+        runner = _resolve_runner(app, AgentRunner[BankTransferAgent])
         names = set(_schema_names(runner, BankTransferAgent))
         assert self._SEARCH_PUBLIC_INFO_TOOL not in names, (
             "Transfer agent leaked the unauth module's knowledge-base tool"
         )
 
     def test_disputes_does_not_see_search_public_info(self, app):
-        from app.ai.agents.banking_delegation import DisputesAgentRunner
         from app.ai.agents.disputes_agent import DisputesAgent
 
-        runner = _resolve_runner(app, DisputesAgentRunner)
+        runner = _resolve_runner(app, AgentRunner[DisputesAgent])
         names = set(_schema_names(runner, DisputesAgent))
         assert self._SEARCH_PUBLIC_INFO_TOOL not in names, (
             "Disputes agent leaked the unauth module's knowledge-base tool"
@@ -333,36 +314,23 @@ class TestSchemaShape:
     """Each schema in the list must be a JSON Schema with at least name + input_schema."""
 
     @pytest.mark.parametrize(
-        "runner_cls_path,agent_cls_path",
+        "agent_cls_path",
         [
-            (
-                "app.ai.agents.banking_delegation:UnauthCRMRunner",
-                "app.ai.agents.unauth_crm_agent:UnauthenticatedCRMAgent",
-            ),
-            (
-                "app.ai.agents.banking_delegation:AuthCRMRunner",
-                "app.ai.agents.auth_crm_agent:AuthenticatedCRMAgent",
-            ),
-            (
-                "app.ai.agents.banking_delegation:TransferAgentRunner",
-                "app.ai.agents.transfer_agent:BankTransferAgent",
-            ),
-            (
-                "app.ai.agents.banking_delegation:DisputesAgentRunner",
-                "app.ai.agents.disputes_agent:DisputesAgent",
-            ),
+            "app.ai.agents.unauth_crm_agent:UnauthenticatedCRMAgent",
+            "app.ai.agents.auth_crm_agent:AuthenticatedCRMAgent",
+            "app.ai.agents.transfer_agent:BankTransferAgent",
+            "app.ai.agents.disputes_agent:DisputesAgent",
         ],
     )
-    def test_every_schema_has_a_name(self, app, runner_cls_path, agent_cls_path):
+    def test_every_schema_has_a_name(self, app, agent_cls_path):
         """No schema in any agent's list may be missing a ``name`` field."""
         import importlib
 
-        runner_mod, runner_cls_name = runner_cls_path.split(":")
         agent_mod, agent_cls_name = agent_cls_path.split(":")
-        runner_cls = getattr(importlib.import_module(runner_mod), runner_cls_name)
         agent_cls = getattr(importlib.import_module(agent_mod), agent_cls_name)
 
-        runner = _resolve_runner(app, runner_cls)
+        # Cross-module DI: subscript ``AgentRunner`` with the agent class.
+        runner = _resolve_runner(app, AgentRunner[agent_cls])
         agent_meta = getattr(agent_cls, AGENT_META)
         schemas = runner._get_tool_schemas(agent_meta)
 

@@ -40,11 +40,11 @@ class TestConversationMemoryPersistence:
 
         from lauren_ai._agents._runner import AgentRunnerBase as AgentRunner
 
+        SimpleAgent.__lauren_ai_agent__.conversation_store = store
         runner = AgentRunner(
             transport=mock,
             tools={},
             config=cfg,
-            conversation_store=store,
         )
 
         agent_instance = SimpleAgent()
@@ -90,11 +90,11 @@ class TestConversationMemoryPersistence:
 
         from lauren_ai._agents._runner import AgentRunnerBase as AgentRunner
 
+        SimpleAgent.__lauren_ai_agent__.conversation_store = store
         runner = AgentRunner(
             transport=mock,
             tools={},
             config=cfg,
-            conversation_store=store,
         )
 
         mock.queue_response(_completion("OK", n=1))
@@ -110,11 +110,11 @@ class TestConversationMemoryPersistence:
 
         from lauren_ai._agents._runner import AgentRunnerBase as AgentRunner
 
+        SimpleAgent.__lauren_ai_agent__.conversation_store = store
         runner = AgentRunner(
             transport=mock,
             tools={},
             config=cfg,
-            conversation_store=store,
         )
         inst = SimpleAgent()
 
@@ -138,11 +138,11 @@ class TestConversationMemoryPersistence:
 
         from lauren_ai._agents._runner import AgentRunnerBase as AgentRunner
 
+        SimpleAgent.__lauren_ai_agent__.conversation_store = store
         runner = AgentRunner(
             transport=mock,
             tools={},
             config=cfg,
-            conversation_store=store,
         )
         inst = SimpleAgent()
         conv_id = "growing-conv"

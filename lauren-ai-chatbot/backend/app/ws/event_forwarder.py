@@ -22,7 +22,7 @@ from lauren import Scope, injectable
 from lauren.websockets import WebSocket
 from lauren_ai import AgentRunComplete, ModelCallComplete, ToolCallComplete, ToolCallStarted
 
-from app.ai.signals import signal_bus
+from app.ai.signals import GuardrailTriggered, signal_bus
 from app.banking.bank_db import BankDatabase, Transaction
 from app.ws.context import current_user_id
 
@@ -40,6 +40,7 @@ class EventForwarder:
         signal_bus.on(ToolCallStarted)(self._on_tool_started)
         signal_bus.on(ToolCallComplete)(self._on_tool_complete)
         signal_bus.on(AgentRunComplete)(self._on_run_complete)
+        signal_bus.on(GuardrailTriggered)(self._on_guardrail_triggered)
 
         # Register balance-change listener on the shared BankDatabase instance
         db.add_transfer_listener(self._on_transfer)
@@ -147,6 +148,20 @@ class EventForwarder:
                 "turns": event.turns,
                 "total_cost_usd": event.total_cost_usd,
                 "total_tokens": (usage.input_tokens + usage.output_tokens) if usage else 0,
+            },
+        )
+
+    async def _on_guardrail_triggered(self, event: GuardrailTriggered) -> None:
+        user_id = current_user_id.get()
+        if not user_id:
+            return
+        await self.send_to_user(
+            user_id,
+            {
+                "type": "guardrail_triggered",
+                "guardrail_name": event.guardrail_name,
+                "agent_name": event.agent_name,
+                "violation": event.violation,
             },
         )
 

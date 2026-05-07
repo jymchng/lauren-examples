@@ -1,5 +1,3 @@
-# NOTE: Do NOT add `from __future__ import annotations` to this file.
-# These constants are imported by @tool() files where PEP 563 must not apply.
 """Canonical agent name constants.
 
 Used as the ``name=`` argument in ``@agent()`` decorators and referenced by

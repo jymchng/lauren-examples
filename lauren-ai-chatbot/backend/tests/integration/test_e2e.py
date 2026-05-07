@@ -1,4 +1,4 @@
-# NOTE: Do NOT add `from __future__ import annotations` to this file.
+
 # MockTransport and tool schema generation require runtime type annotations.
 """End-to-end integration tests for the SecureBank AI Chatbot backend.
 
@@ -389,53 +389,64 @@ class TestBankingWiringE2E:
 
 
 class TestModuleInjectsWiring:
-    """Verify runner tokens produce independent DI singletons."""
+    """Verify ``AgentRunner[X]`` resolves to the correct module's runner."""
 
-    def test_transfer_and_auth_crm_runners_are_distinct_singletons(self, app):
+    def test_auth_and_transfer_runners_are_distinct_singletons(self, app):
         import asyncio
 
-        from app.ai.agents.banking_delegation import AuthCRMRunner, TransferAgentRunner
+        from app.ai.agents.auth_crm_agent import AuthenticatedCRMAgent
+        from app.ai.agents.transfer_agent import BankTransferAgent
+        from lauren_ai import AgentRunner
+        from lauren_ai._agents._runner import AgentRunnerBase
+
+        loop = asyncio.new_event_loop()
+        try:
+            ar = loop.run_until_complete(
+                app.container.resolve(AgentRunner[AuthenticatedCRMAgent])
+            )
+            tr = loop.run_until_complete(
+                app.container.resolve(AgentRunner[BankTransferAgent])
+            )
+        finally:
+            loop.close()
+        assert isinstance(ar, AgentRunnerBase)
+        assert isinstance(tr, AgentRunnerBase)
+        # Different modules ⇒ different runner instances.
+        assert ar is not tr
+
+    def test_auth_and_disputes_runners_in_separate_modules(self, app):
+        """AuthCRM and Disputes live in different AgentModules, so their
+        ``AgentRunner[X]`` aliases resolve to distinct runner instances."""
+        import asyncio
+
+        from app.ai.agents.auth_crm_agent import AuthenticatedCRMAgent
+        from app.ai.agents.disputes_agent import DisputesAgent
         from lauren_ai import AgentRunner
 
         loop = asyncio.new_event_loop()
         try:
-            ar = loop.run_until_complete(app.container.resolve(AuthCRMRunner))
-            tr = loop.run_until_complete(app.container.resolve(TransferAgentRunner))
+            ar = loop.run_until_complete(
+                app.container.resolve(AgentRunner[AuthenticatedCRMAgent])
+            )
+            dr = loop.run_until_complete(
+                app.container.resolve(AgentRunner[DisputesAgent])
+            )
         finally:
             loop.close()
-        assert isinstance(ar, AgentRunner)
-        assert isinstance(tr, AgentRunner)
-        assert ar is not tr
+        assert ar is not dr
 
-    def test_crm_runner_is_not_transfer_runner_subtype(self, app):
+    def test_runner_instance_is_agent_runner_base_subclass(self, app):
         import asyncio
 
-        from app.ai.agents.banking_delegation import AuthCRMRunner, TransferAgentRunner
+        from app.ai.agents.transfer_agent import BankTransferAgent
+        from lauren_ai import AgentRunner
+        from lauren_ai._agents._runner import AgentRunnerBase
 
         loop = asyncio.new_event_loop()
         try:
-            ar = loop.run_until_complete(app.container.resolve(AuthCRMRunner))
+            tr = loop.run_until_complete(
+                app.container.resolve(AgentRunner[BankTransferAgent])
+            )
         finally:
             loop.close()
-        assert not isinstance(ar, TransferAgentRunner)
-
-    def test_transfer_runner_concrete_type_is_subclass(self, app):
-        import asyncio
-
-        from app.ai.agents.banking_delegation import TransferAgentRunner
-
-        loop = asyncio.new_event_loop()
-        try:
-            tr = loop.run_until_complete(app.container.resolve(TransferAgentRunner))
-        finally:
-            loop.close()
-        assert type(tr) is TransferAgentRunner
-
-    def test_ai_module_uses_injects_not_runner_class(self):
-        import inspect
-
-        from app.ai import ai_module
-
-        src = inspect.getsource(ai_module)
-        assert "runner=TransferAgentRunner" in src
-        assert "runner_class=" not in src
+        assert isinstance(tr, AgentRunnerBase)

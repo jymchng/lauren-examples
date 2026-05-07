@@ -15,7 +15,7 @@
  */
 
 import { useEffect, useRef } from "react";
-import { Zap, Wrench, CheckCircle, XCircle, Activity, ArrowRight } from "lucide-react";
+import { Zap, Wrench, CheckCircle, XCircle, Activity, ArrowRight, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { WsEvent } from "@/hooks/useWebSocket";
 
@@ -139,6 +139,28 @@ function EventRow({ entry }: { entry: ActivityEntry }) {
     );
   }
 
+  if (event.type === "guardrail_triggered") {
+    const agentName = event.agent_name ? String(event.agent_name) : null;
+    return (
+      <div className="flex items-center gap-2 py-1">
+        <Shield className="h-3 w-3 text-orange-500 flex-shrink-0" />
+        <span className="text-[11px] text-muted-foreground">
+          <span className="font-medium text-orange-600 dark:text-orange-400">
+            {String(event.guardrail_name)}
+          </span>{" "}
+          blocked off-topic response
+          {agentName && (
+            <>
+              {" "}
+              &middot;{" "}
+              <span className="text-foreground/60">{agentName}</span>
+            </>
+          )}
+        </span>
+      </div>
+    );
+  }
+
   if (event.type === "agent_handoff") {
     const from = abbreviateAgent(String(event.from_agent));
     const to = abbreviateAgent(String(event.to_agent));
@@ -172,7 +194,7 @@ export function LiveActivityFeed({
 
   const visibleEntries = entries
     .filter((e) =>
-      ["tool_started", "tool_complete", "token_usage", "run_complete", "agent_handoff"].includes(
+      ["tool_started", "tool_complete", "token_usage", "run_complete", "agent_handoff", "guardrail_triggered"].includes(
         e.event.type
       )
     )

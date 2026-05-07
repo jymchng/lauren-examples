@@ -225,6 +225,12 @@ export function BankingChatInterface({
                   localMessages = [...localMessages, bubble];
                   onMessagesChange(localMessages);
                 }
+              } else if (event === "guardrail_override") {
+                // The guardrail fired after streaming. Replace whatever was
+                // displayed with the safe redirect message.
+                setToolHint(null);
+                accumulated = data;
+                setStreamingContent(accumulated);
               } else if (event === "done") {
                 const assistantMessage: Message = {
                   id: generateId(),

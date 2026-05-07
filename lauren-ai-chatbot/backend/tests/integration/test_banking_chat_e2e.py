@@ -1,4 +1,4 @@
-# NOTE: Do NOT add `from __future__ import annotations` to this file.
+
 """End-to-end tests for POST /api/banking/chat — the BankingChatController."""
 
 import json

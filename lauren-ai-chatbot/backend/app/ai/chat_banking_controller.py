@@ -30,9 +30,10 @@ from __future__ import annotations
 from lauren import EventStream, Json, ServerSentEvent, controller, post, use_guards
 from lauren.types import ExecutionContext
 
+from lauren_ai import AgentRunner
+
 from app.ai.agent_names import AUTH_CRM_AGENT_NAME, DISPUTES_AGENT_NAME, TRANSFER_AGENT_NAME, UNAUTH_CRM_AGENT_NAME
 from app.ai.agents.auth_crm_agent import AuthenticatedCRMAgent
-from app.ai.agents.banking_delegation import AuthCRMRunner, DisputesAgentRunner, TransferAgentRunner, UnauthCRMRunner
 from app.ai.agents.disputes_agent import DisputesAgent
 from app.ai.agents.transfer_agent import BankTransferAgent
 from app.ai.agents.unauth_crm_agent import UnauthenticatedCRMAgent
@@ -61,10 +62,10 @@ class BankingChatController:
 
     def __init__(
         self,
-        unauth_runner: UnauthCRMRunner,
-        auth_runner: AuthCRMRunner,
-        transfer_runner: TransferAgentRunner,
-        disputes_runner: DisputesAgentRunner,
+        unauth_runner: AgentRunner[UnauthenticatedCRMAgent],
+        auth_runner: AgentRunner[AuthenticatedCRMAgent],
+        transfer_runner: AgentRunner[BankTransferAgent],
+        disputes_runner: AgentRunner[DisputesAgent],
         db: BankDatabase,
         unauth_agent: UnauthenticatedCRMAgent,
         auth_agent: AuthenticatedCRMAgent,
@@ -178,6 +179,8 @@ class BankingChatController:
                             if tcd.name and tcd.tool_use_id not in seen_tool_uses:
                                 seen_tool_uses.add(tcd.tool_use_id)
                                 yield ServerSentEvent(event="tool_use", data=tcd.name)
+                        elif chunk.guardrail_override is not None:
+                            yield ServerSentEvent(event="guardrail_override", data=chunk.guardrail_override)
 
                     new_active = self._active_agent_store.get(conv_id, default_agent)
                     if new_active == active or handoffs >= max_handoffs:
@@ -250,6 +253,8 @@ class BankingChatController:
                             if tcd.name and tcd.tool_use_id not in seen_tool_uses:
                                 seen_tool_uses.add(tcd.tool_use_id)
                                 yield ServerSentEvent(event="tool_use", data=tcd.name)
+                        elif chunk.guardrail_override is not None:
+                            yield ServerSentEvent(event="guardrail_override", data=chunk.guardrail_override)
 
                     new_active = self._active_agent_store.get(conv_id, UNAUTH_CRM_AGENT_NAME)
                     if new_active == active or handoffs >= max_handoffs:

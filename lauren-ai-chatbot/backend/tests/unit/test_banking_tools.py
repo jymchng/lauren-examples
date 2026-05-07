@@ -1,4 +1,4 @@
-# NOTE: Do NOT add `from __future__ import annotations` to this file.
+
 # @tool() uses inspect.signature() at decoration time; PEP 563 breaks it.
 """Unit tests for banking tools: GetBalanceTool, TransferFundsTool, GetTransactionHistoryTool.
 

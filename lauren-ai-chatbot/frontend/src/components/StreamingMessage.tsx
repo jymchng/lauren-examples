@@ -25,7 +25,7 @@ export function StreamingMessage({ content, toolHint }: StreamingMessageProps) {
         AI
       </div>
 
-      <div className="max-w-[75%] rounded-2xl rounded-bl-sm px-4 py-3 text-sm leading-relaxed bg-muted text-foreground break-words whitespace-pre-wrap">
+      <div className="max-w-[75%] rounded-2xl rounded-bl-sm px-4 py-3 text-sm leading-relaxed bg-muted text-foreground/70 break-words whitespace-pre-wrap">
         {content ? (
           <>
             {content}

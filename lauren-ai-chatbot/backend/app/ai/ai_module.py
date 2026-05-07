@@ -2,25 +2,32 @@
 
 Agent architecture
 ------------------
-Four English-only agents in distinct modules:
+Four English-only agents distributed across three modules:
 
-  UnauthenticatedCRMAgent  (UnauthCRMRunner)     — public, pre-login
-  AuthenticatedCRMAgent    (AuthCRMRunner)        — logged-in customers
-  BankTransferAgent        (TransferAgentRunner)  — fund transfers
-  DisputesAgent            (DisputesAgentRunner)  — disputes & fraud
+  UnauthenticatedCRMAgent  — public, pre-login
+  AuthenticatedCRMAgent + DisputesAgent  — share an AgentModule for tool reuse
+  BankTransferAgent  — fund transfers
 
-Conversation isolation
-----------------------
-Each agent receives its **own** ``InMemoryConversationStore``.  Sharing a
-single store means every agent sees the complete cross-agent turn history,
-which causes confusion — agents may re-read prior handoff summaries as
-instructions and trigger the wrong ``HandoffTo`` call.  Isolated stores
-ensure each agent only sees the turns it handled directly; the handoff
+Per-agent state
+---------------
+Each agent declares its **own** :class:`InMemoryConversationStore` via
+``@agent(conversation_store=…)``.  Sharing a single store means every agent
+sees the complete cross-agent turn history, which causes confusion — agents
+may re-read prior handoff summaries as instructions and trigger the wrong
+``HandoffTo`` call.  Per-agent stores keep contexts isolated; the handoff
 summary passed via ``HandoffTo`` provides just the right amount of context.
 
 CheckAuthenticationTool is shared across all four agents.  It is owned and
 exported by CheckAuthModule; each AgentModule imports CheckAuthModule and uses
 shared_tools=[CheckAuthenticationTool] to prevent duplicate DI registration.
+
+Cross-module DI
+---------------
+``BankingChatController`` injects each runner via ``AgentRunner[AgentX]``
+(see :class:`lauren_ai._agents._runner.AgentRunner.__class_getitem__`) — no
+named runner subclasses needed; the framework synthesizes a fresh runner
+class per ``AgentModule.for_root`` call and aliases ``AgentRunner[AgentX]``
+to it for every agent in ``agents=``.
 
 Observability
 -------------
@@ -31,35 +38,24 @@ All runners are wired to the shared ``signal_bus`` so every model call emits
 from __future__ import annotations
 
 import logging
-import os
-from pathlib import Path
 
 from lauren import module, use_value
 from lauren_ai import (
-    AgentRunner,
     CostTracker,
-    InMemoryConversationStore,
-    LLMConfig,
     LLMModule,
     ModelCallComplete,
     default_pricing_table,
 )
-from lauren_ai._knowledge import (
-    KnowledgeBase,
-    KnowledgeSource,
-    SentenceChunker,
-    TextLoader,
-)
-from lauren_ai._memory._vector import InMemoryVectorStore
+from app.ai.llm_config import llm_config as _llm_config
 from lauren_ai._module import AgentModule, LLMService
 
 from app.ai.agents.auth_crm_agent import AuthenticatedCRMAgent
-from app.ai.agents.banking_delegation import AuthCRMRunner, DisputesAgentRunner, TransferAgentRunner, UnauthCRMRunner
 from app.ai.agents.disputes_agent import DisputesAgent
 from app.ai.agents.transfer_agent import BankTransferAgent
 from app.ai.agents.unauth_crm_agent import UnauthenticatedCRMAgent
 from app.ai.approval.approval_module import ApprovalModule
 from app.ai.chat_banking_controller import BankingChatController
+from app.ai.knowledge_sources import PUBLIC_KB_SOURCE
 from app.ai.signals import signal_bus
 from app.ai.tools.active_agent_module import ActiveAgentModule
 from app.ai.tools.active_agent_store import ActiveAgentStore
@@ -74,60 +70,28 @@ from app.ws.ws_module import WsModule
 logger = logging.getLogger(__name__)
 
 # ── 1. LLM configuration ────────────────────────────────────────────────────
-
-_llm_config = LLMConfig(
-    provider="openai",
-    model=os.environ.get("LLM_MODEL", "poolside/laguna-xs.2:free"),
-    api_key=os.environ.get("OPENROUTER_API_KEY", ""),
-    base_url="https://openrouter.ai/api/v1",
-)
+# _llm_config is imported from app.ai.llm_config (above) to avoid circular
+# imports: agent files import LLMScopeGuard which needs the config, and they
+# cannot import from ai_module.py because ai_module.py imports the agents.
 
 LLMProvider = LLMModule.for_root(_llm_config)
 
-# ── 2. Conversation stores ───────────────────────────────────────────────────
+# ── 2. Agent + tool wiring ──────────────────────────────────────────────────
 #
-# One store per agent.  A shared store would expose the full cross-agent turn
-# history to every agent, causing agents to re-read prior handoff summaries as
-# instructions and trigger the wrong HandoffTo call.
-
-_unauth_store = InMemoryConversationStore()
-_auth_crm_store = InMemoryConversationStore()
-_transfer_store = InMemoryConversationStore()
-_disputes_store = InMemoryConversationStore()
-
-_PUBLIC_KB_DIR = Path(__file__).parent / "knowledge"
-
-# ── 3. Agent + tool wiring ──────────────────────────────────────────────────
-#
-# Four AgentModule instances — one per agent.  CheckAuthenticationTool is
-# shared; it is owned by CheckAuthModule and imported via shared_tools= to
-# prevent ModuleExportViolation.
+# AgentModule instances.  CheckAuthenticationTool is shared; it is owned by
+# CheckAuthModule and imported via shared_tools= to prevent
+# ModuleExportViolation.  Conversation stores are declared per-agent on the
+# @agent(conversation_store=…) decorator — not at module level.
 
 _UnauthCRMModule = AgentModule.for_root(
     agents=[UnauthenticatedCRMAgent],
     imports=[LLMProvider, CheckAuthModule, WsModule, ActiveAgentModule],
     shared_tools=[CheckAuthenticationTool],
     signals=signal_bus,
-    conversation_store=_unauth_store,
-    runner=UnauthCRMRunner,
     # RAG: products, rates, fees, branch hours, account-opening, security.
-    # Auto-attaches a ``search_public_info`` tool to the agent's schema —
-    # no @use_tools declaration needed.  Content lives in
-    # ``app/ai/knowledge/*.md``.
-    knowledge=[
-        KnowledgeSource(
-            kb=KnowledgeBase(
-                store=InMemoryVectorStore(),
-                chunker=SentenceChunker(max_chunk_size=600),
-            ),
-            tool_name="search_public_info",
-            top_k=3,
-            loaders=[
-                TextLoader(str(p))
-                for p in sorted(_PUBLIC_KB_DIR.glob("*.md"))
-            ],
-        ),
-    ],
+    # Visibility is opt-in; UnauthenticatedCRMAgent declares it via
+    # @use_knowledge_sources(PUBLIC_KB_SOURCE).
+    knowledge=[PUBLIC_KB_SOURCE],
 )
 
 _AuthCRMModule = AgentModule.for_root(
@@ -136,8 +100,6 @@ _AuthCRMModule = AgentModule.for_root(
     imports=[LLMProvider, CheckAuthModule, BankingModule, WsModule, ActiveAgentModule],
     shared_tools=[CheckAuthenticationTool, GetBalanceTool, GetTransactionHistoryTool],
     signals=signal_bus,
-    conversation_store=_auth_crm_store,
-    runner=AuthCRMRunner,
 )
 
 _TransferModule = AgentModule.for_root(
@@ -146,8 +108,6 @@ _TransferModule = AgentModule.for_root(
     imports=[LLMProvider, CheckAuthModule, BankingModule, ApprovalModule, WsModule, ActiveAgentModule],
     shared_tools=[CheckAuthenticationTool],
     signals=signal_bus,
-    conversation_store=_transfer_store,
-    runner=TransferAgentRunner,
 )
 
 _DisputesModule = AgentModule.for_root(
@@ -156,11 +116,11 @@ _DisputesModule = AgentModule.for_root(
     imports=[LLMProvider, CheckAuthModule, BankingModule, WsModule, ActiveAgentModule],
     shared_tools=[CheckAuthenticationTool, GetBalanceTool, GetTransactionHistoryTool],
     signals=signal_bus,
-    conversation_store=_disputes_store,
-    runner=DisputesAgentRunner,
 )
 
-# ── 4. CostTracker ──────────────────────────────────────────────────────────
+
+
+# ── 3. CostTracker ──────────────────────────────────────────────────────────
 
 _cost_tracker = CostTracker(pricing=default_pricing_table())
 

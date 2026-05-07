@@ -10,9 +10,12 @@ from __future__ import annotations
 import logging
 import time
 
-from lauren_ai import AgentContext, AgentResponse, Completion, ToolResult, agent, use_tools
+from lauren_ai import AgentContext, AgentResponse, Completion, ToolResult, agent, use_guardrails, use_tools
+from lauren_ai._memory._stores import InMemoryConversationStore
 
 from app.ai.agent_names import AUTH_CRM_AGENT_NAME
+from app.ai.guardrails import LLMScopeGuard
+from app.ai.llm_config import llm_config as _llm_config
 from app.ai.tools.banking_tools import GetBalanceTool, GetTransactionHistoryTool
 from app.ai.tools.check_auth_tool import CheckAuthenticationTool
 from app.ai.tools.handoff_tool import HandoffTo
@@ -71,8 +74,38 @@ Your response is rendered as Markdown.  Format for readability:
 
 logger = logging.getLogger(__name__)
 
+_AUTH_CRM_ROLE = "Authenticated CRM Agent — manages existing SecureBank customer accounts"
+_AUTH_CRM_SCOPE = """\
+• Answering questions using real data from GetBalanceTool / GetTransactionHistoryTool
+• Initiating transfers by handing off to Banking Transfer Agent
+• Initiating dispute investigations via Banking Disputes Agent
+• Session authentication via CheckAuthenticationTool
+• General account guidance without inventing specific facts, URLs, or contact information"""
+_AUTH_CRM_REDIRECT = (
+    "I don't have access to that product information right now. "
+    "For accurate details on branch hours, rates, or fees, please use "
+    "our public assistant or visit the SecureBank website.\n\n"
+    "*(Type \"public\" or ask me to switch you to the public assistant.)*"
+)
 
-@agent(name=AUTH_CRM_AGENT_NAME, model=None, system=_SYSTEM, max_turns=6)
+
+@agent(
+    name=AUTH_CRM_AGENT_NAME,
+    model=None,
+    system=_SYSTEM,
+    max_turns=6,
+    conversation_store=InMemoryConversationStore(),
+)
+@use_guardrails(
+    output=[LLMScopeGuard(
+        llm_config=_llm_config,
+        agent_role=_AUTH_CRM_ROLE,
+        allowed_scope=_AUTH_CRM_SCOPE,
+        redirect_message=_AUTH_CRM_REDIRECT,
+        guardrail_name="AuthCRMScopeGuard",
+        agent_name="Auth CRM Agent",
+    )],
+)
 @use_tools(GetBalanceTool, GetTransactionHistoryTool, CheckAuthenticationTool, HandoffTo)
 class AuthenticatedCRMAgent:
     """Authenticated customer-facing banking assistant."""

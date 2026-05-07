@@ -11,9 +11,12 @@ from __future__ import annotations
 import logging
 import time
 
-from lauren_ai import AgentContext, AgentResponse, Completion, ToolResult, agent, use_tools
+from lauren_ai import AgentContext, AgentResponse, Completion, ToolResult, agent, use_guardrails, use_tools
+from lauren_ai._memory._stores import InMemoryConversationStore
 
 from app.ai.agent_names import DISPUTES_AGENT_NAME
+from app.ai.guardrails import LLMScopeGuard
+from app.ai.llm_config import llm_config as _llm_config
 from app.ai.tools.banking_tools import GetBalanceTool, GetTransactionHistoryTool
 from app.ai.tools.check_auth_tool import CheckAuthenticationTool
 from app.ai.tools.handoff_tool import HandoffTo
@@ -91,8 +94,36 @@ Your response is rendered as Markdown.  Format for readability:
 
 logger = logging.getLogger(__name__)
 
+_DISPUTES_ROLE = "Disputes Agent — investigates transaction disputes, fraud, and chargebacks"
+_DISPUTES_SCOPE = """\
+• Reviewing transaction history via GetBalanceTool / GetTransactionHistoryTool
+• Gathering information about the disputed transaction from the customer
+• Explaining the dispute investigation process in general terms
+• Handing off to Banking Transfer Agent or Banking CRM Agent (Authenticated)"""
+_DISPUTES_REDIRECT = (
+    "I specialise in dispute resolution and can't help with that question. "
+    "Would you like me to return you to the Banking CRM Agent?\n\n"
+    "*(Say \"yes\" and I'll hand you over.)*"
+)
 
-@agent(name=DISPUTES_AGENT_NAME, model=None, system=_SYSTEM, max_turns=8)
+
+@agent(
+    name=DISPUTES_AGENT_NAME,
+    model=None,
+    system=_SYSTEM,
+    max_turns=8,
+    conversation_store=InMemoryConversationStore(),
+)
+@use_guardrails(
+    output=[LLMScopeGuard(
+        llm_config=_llm_config,
+        agent_role=_DISPUTES_ROLE,
+        allowed_scope=_DISPUTES_SCOPE,
+        redirect_message=_DISPUTES_REDIRECT,
+        guardrail_name="DisputesScopeGuard",
+        agent_name="Disputes Agent",
+    )],
+)
 @use_tools(GetBalanceTool, GetTransactionHistoryTool, CheckAuthenticationTool, HandoffTo)
 class DisputesAgent:
     """Specialist agent for transaction disputes, fraud reports, and chargebacks."""

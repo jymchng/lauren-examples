@@ -1,4 +1,4 @@
-# NOTE: Do NOT add `from __future__ import annotations` to this file.
+
 """Unit tests for ApprovalController — HTTP endpoint for browser Yes/No responses."""
 
 from __future__ import annotations

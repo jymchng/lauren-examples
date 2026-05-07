@@ -13,9 +13,12 @@ from __future__ import annotations
 
 import logging
 
-from lauren_ai import agent, use_tools
+from lauren_ai import agent, use_guardrails, use_tools
+from lauren_ai._memory._stores import InMemoryConversationStore
 
 from app.ai.agent_names import TRANSFER_AGENT_NAME
+from app.ai.guardrails import LLMScopeGuard
+from app.ai.llm_config import llm_config as _llm_config
 from app.ai.approval.approval_tool import ApprovalTool
 from app.ai.tools.banking_tools import TransferFundsTool
 from app.ai.tools.check_auth_tool import CheckAuthenticationTool
@@ -65,6 +68,27 @@ STEP 4 — RETURN TO CRM
 After every successful transfer, state the transaction ID, updated balance, and \
 recipient name clearly.
 
+══ SCOPE BOUNDARY (strict — do NOT answer anything outside this list) ════════
+You ONLY handle:
+• Executing fund transfers (ApprovalTool → TransferFundsTool)
+• Verifying session authentication (CheckAuthenticationTool)
+• Handing off to another agent when appropriate
+
+You CANNOT help with — and MUST NOT attempt to answer — any question about:
+• Branch hours, ATM locations, or any general bank information
+• Interest rates, fees, account types, or product details
+• Opening, closing, or modifying accounts
+• General account balance or transaction history questions
+• Any topic not directly related to completing a specific fund transfer
+
+If the customer's request falls outside the list above, your ONLY permitted
+response is to call HandoffTo with:
+  to_agent = "Banking CRM Agent (Authenticated)"
+  summary  = "Customer asked about [brief topic] — outside transfer scope"
+
+Do NOT explain why you cannot help before calling HandoffTo.  Do NOT suggest
+you will "try" or "look into" it.  Simply call HandoffTo immediately.
+
 ══ OUTPUT FORMATTING (Markdown) ══════════════════════════════════════════════
 Your response is rendered as Markdown.  Format for readability:
 • Separate paragraphs with a BLANK LINE.  Never run two sentences together
@@ -88,8 +112,37 @@ Your response is rendered as Markdown.  Format for readability:
 
 logger = logging.getLogger(__name__)
 
+_TRANSFER_ROLE = "Transfer Agent — executes fund transfers for authenticated customers"
+_TRANSFER_SCOPE = """\
+• Gathering transfer details (recipient name, amount) from the customer
+• Requesting human approval via ApprovalTool
+• Executing the transfer via TransferFundsTool
+• Verifying session authentication via CheckAuthenticationTool
+• Handing off to Banking CRM Agent or Banking Disputes Agent"""
+_TRANSFER_REDIRECT = (
+    "I specialise exclusively in fund transfers and can't answer that question. "
+    "Would you like me to connect you with our Banking CRM Agent who can help?\n\n"
+    "*(Just say \"yes\" or \"transfer me\" and I'll hand you over.)*"
+)
 
-@agent(name=TRANSFER_AGENT_NAME, model=None, system=_SYSTEM, max_turns=10)
+
+@agent(
+    name=TRANSFER_AGENT_NAME,
+    model=None,
+    system=_SYSTEM,
+    max_turns=10,
+    conversation_store=InMemoryConversationStore(),
+)
+@use_guardrails(
+    output=[LLMScopeGuard(
+        llm_config=_llm_config,
+        agent_role=_TRANSFER_ROLE,
+        allowed_scope=_TRANSFER_SCOPE,
+        redirect_message=_TRANSFER_REDIRECT,
+        guardrail_name="TransferScopeGuard",
+        agent_name="Transfer Agent",
+    )],
+)
 @use_tools(ApprovalTool, TransferFundsTool, CheckAuthenticationTool, HandoffTo)
 class BankTransferAgent:
     """Transfer execution agent (reached via handoff from AuthenticatedCRMAgent)."""

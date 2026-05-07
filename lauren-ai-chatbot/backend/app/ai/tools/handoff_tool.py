@@ -1,4 +1,4 @@
-# NOTE: Do NOT add `from __future__ import annotations` to this file.
+
 # The @tool() decorator uses inspect.signature() at decoration time to build
 # the JSON schema, and PEP 563 lazy evaluation breaks that introspection.
 """Conversation handoff tool for agent-to-agent session transfer.

@@ -10,9 +10,11 @@ from __future__ import annotations
 import logging
 import time
 
-from lauren_ai import AgentContext, AgentResponse, Completion, ToolResult, agent, use_tools
+from lauren_ai import AgentContext, AgentResponse, Completion, ToolResult, agent, use_knowledge_sources, use_tools
+from lauren_ai._memory._stores import InMemoryConversationStore
 
 from app.ai.agent_names import UNAUTH_CRM_AGENT_NAME
+from app.ai.knowledge_sources import PUBLIC_KB_SOURCE
 from app.ai.tools.check_auth_tool import CheckAuthenticationTool
 from app.ai.tools.handoff_to_authenticated import HandoffToAuthenticatedCRM
 
@@ -79,7 +81,14 @@ Your response is rendered as Markdown.  Format for readability:
 logger = logging.getLogger(__name__)
 
 
-@agent(name=UNAUTH_CRM_AGENT_NAME, model=None, system=_SYSTEM, max_turns=4)
+@use_knowledge_sources(PUBLIC_KB_SOURCE)
+@agent(
+    name=UNAUTH_CRM_AGENT_NAME,
+    model=None,
+    system=_SYSTEM,
+    max_turns=4,
+    conversation_store=InMemoryConversationStore(),
+)
 @use_tools(CheckAuthenticationTool, HandoffToAuthenticatedCRM)
 class UnauthenticatedCRMAgent:
     """Public-facing agent for unauthenticated users."""

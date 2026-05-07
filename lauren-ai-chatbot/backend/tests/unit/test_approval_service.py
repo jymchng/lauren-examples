@@ -1,4 +1,4 @@
-# NOTE: Do NOT add `from __future__ import annotations` to this file.
+
 """Unit tests for ApprovalService — manages pending HITL transfer approvals."""
 
 from __future__ import annotations

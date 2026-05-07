@@ -43,7 +43,8 @@ export interface WsEvent {
     | "run_complete"
     | "balance_changed"
     | "transfer_approval_request"
-    | "agent_handoff";
+    | "agent_handoff"
+    | "guardrail_triggered";
   [key: string]: unknown;
 }
 

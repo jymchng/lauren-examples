@@ -1,4 +1,4 @@
-# NOTE: Do NOT add `from __future__ import annotations` to this file.
+
 """Unit tests for ApprovalTool — HITL gate that blocks until user approves/declines."""
 
 from __future__ import annotations
