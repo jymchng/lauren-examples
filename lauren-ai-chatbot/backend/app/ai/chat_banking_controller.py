@@ -36,6 +36,7 @@ from app.ai.agents.banking_delegation import AuthCRMRunner, DisputesAgentRunner,
 from app.ai.agents.disputes_agent import DisputesAgent
 from app.ai.agents.transfer_agent import BankTransferAgent
 from app.ai.agents.unauth_crm_agent import UnauthenticatedCRMAgent
+from app.ai.approval.approval_service import ApprovalService
 from app.ai.tools.active_agent_store import ActiveAgentStore
 from app.banking.bank_db import BankDatabase
 from app.ai.chat_schemas import ChatRequest
@@ -70,9 +71,11 @@ class BankingChatController:
         transfer_agent: BankTransferAgent,
         disputes_agent: DisputesAgent,
         active_agent_store: ActiveAgentStore,
+        approval_svc: ApprovalService,
     ) -> None:
         self._db = db
         self._active_agent_store = active_agent_store
+        self._approval_svc = approval_svc
         self._agent_registry: dict[str, tuple] = {
             UNAUTH_CRM_AGENT_NAME: (unauth_agent, unauth_runner),
             AUTH_CRM_AGENT_NAME: (auth_agent, auth_runner),
@@ -147,9 +150,10 @@ class BankingChatController:
         if user_id:
             current_user_id.set(user_id)
 
+        conv_id = body.conversation_id
+
         async def generate():
             try:
-                conv_id = body.conversation_id
                 max_handoffs = 8
 
                 active = self._active_agent_store.get(conv_id, default_agent)
@@ -196,6 +200,13 @@ class BankingChatController:
                 yield ServerSentEvent(event="done", data="")
             except Exception as exc:
                 yield ServerSentEvent(event="error", data=str(exc))
+            finally:
+                # Whether the SSE stream ended normally or via client
+                # disconnect (browser refresh / tab close), tear down any
+                # approvals tied to this conversation so a freshly
+                # reconnected WebSocket can't pick up a zombie prompt the
+                # user already abandoned.
+                await self._approval_svc.cancel_for_conversation(conv_id)
 
         return EventStream(generate(), keep_alive=15.0)
 
@@ -253,5 +264,8 @@ class BankingChatController:
                 yield ServerSentEvent(event="done", data="")
             except Exception as exc:
                 yield ServerSentEvent(event="error", data=str(exc))
+            finally:
+                # See the comment on the corresponding finally in stream().
+                await self._approval_svc.cancel_for_conversation(conv_id)
 
         return EventStream(generate(), keep_alive=15.0)

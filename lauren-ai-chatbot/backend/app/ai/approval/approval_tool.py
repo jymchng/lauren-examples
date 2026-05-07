@@ -86,6 +86,7 @@ class ApprovalTool:
             approval_id,
             auth_uid,
             {"to_user": to_user, "amount": amount, "description": description},
+            conversation_id=conversation_id,
         )
 
         await self._forwarder.send_to_user(
@@ -98,6 +99,9 @@ class ApprovalTool:
                 "amount_usd": amount,
                 "description": description,
                 "conversation_id": conversation_id,
+                # Stamp the wire payload so the frontend can drop stale
+                # prompts that arrive after a refresh / WS reconnect.
+                "created_at": int(time.time() * 1000),
             },
         )
 

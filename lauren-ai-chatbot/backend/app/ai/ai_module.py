@@ -158,6 +158,7 @@ _cost_tracker_provider = use_value(provide=CostTracker, value=_cost_tracker)
         CryptoModule,
         WsModule,
         ActiveAgentModule,
+        ApprovalModule,
     ],
     providers=[
         _cost_tracker_provider,

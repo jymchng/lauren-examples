@@ -8,6 +8,12 @@ the agent.
 
 Cross-user protection: ``resolve()`` checks that the caller's user_id matches
 the one stored at ``create()`` time, preventing approval forgery.
+
+SSE-close cleanup: each approval is tagged with the originating
+``conversation_id``.  When the SSE stream that issued it disconnects, the
+controller calls ``cancel_for_conversation()`` to resolve every matching
+future as ``approved=False`` so a refresh / WS-reconnect can't surface a
+zombie approval prompt for a request the user already abandoned.
 """
 
 from __future__ import annotations
@@ -31,13 +37,22 @@ class ApprovalService:
         approval_id: str,
         user_id: str,
         details: dict,
+        conversation_id: str = "",
     ) -> asyncio.Future[bool]:
-        """Register a new pending approval and return the associated Future."""
+        """Register a new pending approval and return the associated Future.
+
+        ``conversation_id`` is used by ``cancel_for_conversation`` to tear
+        down approvals when their originating SSE stream closes.
+        """
         loop = asyncio.get_event_loop()
         fut: asyncio.Future[bool] = loop.create_future()
         async with self._lock:
             self._pending[approval_id] = fut
-            self._meta[approval_id] = {"user_id": user_id, **details}
+            self._meta[approval_id] = {
+                "user_id": user_id,
+                "conversation_id": conversation_id,
+                **details,
+            }
         return fut
 
     async def resolve(
@@ -71,3 +86,30 @@ class ApprovalService:
             self._pending.pop(approval_id, None)
             self._meta.pop(approval_id, None)
         return True
+
+    async def cancel_for_conversation(self, conversation_id: str) -> int:
+        """Cancel every pending approval tagged with *conversation_id*.
+
+        Resolves each matching future with ``approved=False`` and removes
+        it from the registry.  Called from the chat controller's SSE
+        ``finally`` block so a refresh / disconnect doesn't leave zombie
+        approvals that pop up on a reconnected WebSocket.
+
+        Returns the number of approvals cancelled (useful for tests / logs).
+        """
+        if not conversation_id:
+            return 0
+        async with self._lock:
+            stale = [
+                aid
+                for aid, meta in self._meta.items()
+                if meta.get("conversation_id") == conversation_id
+            ]
+            cancelled = 0
+            for aid in stale:
+                fut = self._pending.pop(aid, None)
+                self._meta.pop(aid, None)
+                if fut is not None and not fut.done():
+                    fut.set_result(False)
+                    cancelled += 1
+        return cancelled

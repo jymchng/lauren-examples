@@ -130,7 +130,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
           message.content
         ) : (
           <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]} components={mdComponents}>
-            {message.content}
+            {normalizeMarkdown(message.content)}
           </ReactMarkdown>
         )}
       </div>
@@ -144,10 +144,44 @@ export function MessageBubble({ message }: MessageBubbleProps) {
   );
 }
 
+/**
+ * Inject paragraph breaks at common dense-text boundaries the LLM
+ * sometimes emits without whitespace (esp. smaller models on streaming).
+ * Conservative — only acts on patterns that are unambiguously prose
+ * breaks, never on legitimate camelCase identifiers, URLs, or markdown
+ * structures like bold spans.
+ */
+function normalizeMarkdown(text: string): string {
+  return (
+    text
+      // Sentence boundary without whitespace: ``foo.Bar`` / ``foo!Bar`` /
+      // ``foo?Bar`` → paragraph break.  Requires ≥2 lower-case letters
+      // before the punct to avoid breaking abbreviations like ``A.B.``.
+      .replace(/([a-z]{2}[.!?])([A-Z])/g, "$1\n\n$2")
+      // Sentence boundary where the byte before .!? is a digit
+      // (``$4,900.00.Would``).  Match ``digit + .!? + capital + lowercase``
+      // so identifiers like ``ACC-001`` (no following lowercase letter)
+      // stay untouched.
+      .replace(/(\d[.!?])([A-Z][a-z])/g, "$1\n\n$2")
+      // Lowercase letter followed by a capitalised word of length ≥4
+      // (``CompletedYour``).  The 4-char minimum lets short capitalised
+      // tokens (``GitHub``, ``OAuth``, ``API``, ``URL``) pass through
+      // intact while still catching legitimate sentence starts
+      // (``Would``, ``Your``, ``Here``, ``Thank``).
+      .replace(/([a-z])([A-Z][a-z]{3,})/g, "$1\n\n$2")
+      // Closing ``**`` immediately followed by a numbered-list item
+      // (``**Header**1. item``) → break before the list.
+      .replace(/(\*\*)(\d+\.\s)/g, "$1\n\n$2")
+      // Closing parenthesis followed by a capital letter (``(Sent)Your``)
+      // → paragraph break.
+      .replace(/(\))([A-Z])/g, "$1\n\n$2")
+  );
+}
+
 export function MarkdownContent({ content }: { content: string }) {
   return (
     <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]} components={mdComponents}>
-      {content}
+      {normalizeMarkdown(content)}
     </ReactMarkdown>
   );
 }

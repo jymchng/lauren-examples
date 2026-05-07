@@ -1,12 +1,17 @@
 /**
  * StreamingMessage — shows a live typing indicator while the AI is streaming.
  *
- * Renders like a regular assistant bubble but appends an animated cursor
- * to the end of the content to indicate that more tokens are coming.
+ * Renders content as raw text (whitespace preserved) with a blinking cursor.
+ * Markdown parsing and normalization are deliberately skipped during the
+ * stream — re-parsing on every chunk is expensive and can produce flickery
+ * intermediate states when partial text triggers spurious pattern matches.
+ *
+ * When the ``done`` SSE event arrives, ``BankingChatInterface`` finalizes
+ * the accumulated text as an ``assistant`` ``Message`` and ``MessageBubble``
+ * takes over rendering with full Markdown + normalization.
  */
 
 import { cn } from "@/lib/utils";
-import { MarkdownContent } from "@/components/MessageBubble";
 
 interface StreamingMessageProps {
   content: string;
@@ -20,10 +25,10 @@ export function StreamingMessage({ content, toolHint }: StreamingMessageProps) {
         AI
       </div>
 
-      <div className="max-w-[75%] rounded-2xl rounded-bl-sm px-4 py-3 text-sm leading-relaxed bg-muted text-foreground break-words">
+      <div className="max-w-[75%] rounded-2xl rounded-bl-sm px-4 py-3 text-sm leading-relaxed bg-muted text-foreground break-words whitespace-pre-wrap">
         {content ? (
           <>
-            <MarkdownContent content={content} />
+            {content}
             {/* Blinking cursor */}
             <span
               className={cn(

@@ -116,3 +116,57 @@ class TestApprovalServiceResolve:
 
         await asyncio.gather(agent_side(), browser_side())
         assert results == [True]
+
+
+# ---------------------------------------------------------------------------
+# cancel_for_conversation()
+# ---------------------------------------------------------------------------
+
+
+class TestApprovalServiceCancelForConversation:
+    @pytest.mark.asyncio
+    async def test_cancel_resolves_matching_future_as_false(self):
+        """SSE close: pending approvals for the conversation resolve to ``approved=False``."""
+        svc = ApprovalService()
+        fut = await svc.create("appr-c1", "alice", {}, conversation_id="conv-1")
+        cancelled = await svc.cancel_for_conversation("conv-1")
+        assert cancelled == 1
+        assert fut.done()
+        assert fut.result() is False
+
+    @pytest.mark.asyncio
+    async def test_cancel_only_affects_matching_conversation(self):
+        """Approvals for a different conversation must remain pending."""
+        svc = ApprovalService()
+        fut_a = await svc.create("appr-c2", "alice", {}, conversation_id="conv-A")
+        fut_b = await svc.create("appr-c3", "alice", {}, conversation_id="conv-B")
+
+        await svc.cancel_for_conversation("conv-A")
+
+        assert fut_a.done() and fut_a.result() is False
+        assert not fut_b.done()
+
+    @pytest.mark.asyncio
+    async def test_cancel_removes_entry_from_registry(self):
+        """After cancel, a subsequent resolve() with the same id must return False."""
+        svc = ApprovalService()
+        await svc.create("appr-c4", "alice", {}, conversation_id="conv-X")
+        await svc.cancel_for_conversation("conv-X")
+        ok = await svc.resolve("appr-c4", "alice", approved=True)
+        assert ok is False
+
+    @pytest.mark.asyncio
+    async def test_cancel_with_empty_conversation_id_is_noop(self):
+        """Defensive — controller can call cancel(``""``) without affecting unrelated approvals."""
+        svc = ApprovalService()
+        fut = await svc.create("appr-c5", "alice", {}, conversation_id="conv-Y")
+        cancelled = await svc.cancel_for_conversation("")
+        assert cancelled == 0
+        assert not fut.done()
+
+    @pytest.mark.asyncio
+    async def test_cancel_no_matches_returns_zero(self):
+        svc = ApprovalService()
+        await svc.create("appr-c6", "alice", {}, conversation_id="conv-Z")
+        cancelled = await svc.cancel_for_conversation("nonexistent-conv")
+        assert cancelled == 0

@@ -148,7 +148,16 @@ export default function Home() {
       const balances = event.balances as Record<string, number>;
       setLiveBalances((prev) => ({ ...prev, ...balances }));
     } else if (event.type === "transfer_approval_request") {
-      setPendingApproval(event as unknown as TransferApprovalRequest);
+      // Drop approvals that arrived too late to be relevant — e.g., the
+      // user refreshed the tab during a slow transfer and the WS only
+      // reconnected after the backend already pushed the request.
+      const approval = event as unknown as TransferApprovalRequest;
+      const ageMs = approval.created_at ? Date.now() - approval.created_at : 0;
+      if (approval.created_at && ageMs > 60_000) {
+        console.warn("Discarding stale approval prompt", { ageMs });
+        return;
+      }
+      setPendingApproval(approval);
     } else if (event.type === "agent_handoff") {
       setCurrentAgent((event as unknown as AgentHandoffEvent).to_agent);
       activityCounterRef.current += 1;

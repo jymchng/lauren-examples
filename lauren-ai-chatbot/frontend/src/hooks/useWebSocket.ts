@@ -23,6 +23,8 @@ export interface TransferApprovalRequest {
   amount_usd: number;
   description: string;
   conversation_id: string;
+  /** Epoch ms when the backend stamped the request. Used to drop stale prompts after a refresh / WS reconnect. */
+  created_at?: number;
 }
 
 export interface AgentHandoffEvent {
