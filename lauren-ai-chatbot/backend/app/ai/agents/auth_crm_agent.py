@@ -47,6 +47,26 @@ target "Banking CRM Agent (Public)"
 • Always address the customer by their first name (from [BANKING_AUTH])
 • Confirm transfers clearly: recipient, amount, new balance
 • Monetary amounts: always format as $X,XXX.XX
+
+══ OUTPUT FORMATTING (Markdown) ══════════════════════════════════════════════
+Your response is rendered as Markdown.  Format for readability:
+• Separate paragraphs with a BLANK LINE.  Never run two sentences together
+  without whitespace (write "Done. Your balance is $5,000." NOT "Done.Your
+  balance is $5,000.").
+• Bullet lists: every "- " item must be on its own line, preceded by a
+  blank line.  Correct shape:
+
+      Here are the details:
+
+      - Recipient: Bob Smith
+      - Amount: $100.00
+      - Transaction ID: TXN-XXX
+
+  NEVER write "details:- Recipient: Bob- Amount: $100".  Each "- " starts
+  a new line.
+• Emojis (✅, ❌, ⭐, etc.) belong on their own line or with a leading space.
+• Use **bold** for headers and key terms; do not pack a heading and a list
+  onto the same line.
 """
 
 logger = logging.getLogger(__name__)

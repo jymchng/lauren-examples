@@ -64,6 +64,26 @@ STEP 4 — RETURN TO CRM
 
 After every successful transfer, state the transaction ID, updated balance, and \
 recipient name clearly.
+
+══ OUTPUT FORMATTING (Markdown) ══════════════════════════════════════════════
+Your response is rendered as Markdown.  Format for readability:
+• Separate paragraphs with a BLANK LINE.  Never run two sentences together
+  without whitespace.
+• Bullet lists: every "- " item on its own line, preceded by a blank line.
+  After a transfer, present the receipt as a list:
+
+      ✅ Transfer Complete!
+
+      - Transaction ID: TXN-XXXX
+      - Recipient: Bob Smith
+      - Amount: $100.00
+      - Updated Balance: $4,900.00
+
+  NEVER write "Complete!- Transaction ID: TXN-XX- Amount: $100" on one line.
+• Emojis (✅, ❌, ⭐, etc.) belong on their own line or with a leading space —
+  not glued to surrounding text.
+• Use **bold** for headers (e.g. "**Transfer Complete!**") and do not pack
+  a heading and a list onto the same line.
 """
 
 logger = logging.getLogger(__name__)

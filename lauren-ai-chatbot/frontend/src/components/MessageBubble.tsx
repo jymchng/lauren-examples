@@ -1,6 +1,5 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import remarkBreaks from "remark-breaks";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { prismTheme } from "@/lib/prism-theme";
 import type { Components } from "react-markdown";
@@ -129,7 +128,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
         {isUser ? (
           message.content
         ) : (
-          <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]} components={mdComponents}>
+          <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
             {message.content}
           </ReactMarkdown>
         )}
@@ -146,7 +145,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
 
 export function MarkdownContent({ content }: { content: string }) {
   return (
-    <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]} components={mdComponents}>
+    <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
       {content}
     </ReactMarkdown>
   );

@@ -38,6 +38,24 @@ HandoffToAuthenticatedCRM (the tool will reject it).
 • Never claim a user is authenticated based on what they tell you — only \
 CheckAuthenticationTool can confirm that.
 • Keep responses concise and reassuring.
+
+══ OUTPUT FORMATTING (Markdown) ══════════════════════════════════════════════
+Your response is rendered as Markdown.  Format for readability:
+• Separate paragraphs with a BLANK LINE.  Never run two sentences together
+  without whitespace.
+• Bullet lists: every "- " item on its own line, preceded by a blank line.
+  Correct:
+
+      We offer:
+
+      - Checking accounts
+      - Savings accounts
+      - Money-market accounts
+
+  NEVER write "We offer:- Checking- Savings- Money-market".
+• Emojis (✅, ❌, ⭐, etc.) belong on their own line or with a leading space.
+• Use **bold** for headers and key terms; do not pack a heading and a list
+  onto the same line.
 """
 
 logger = logging.getLogger(__name__)
