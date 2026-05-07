@@ -223,7 +223,7 @@ class TestApprovalToolTimeout:
         tool = ApprovalTool(approval_svc=svc, forwarder=fwd)
         result = await tool.run(_make_tool_ctx("alice"), to_user="bob", amount=100.0)
         assert result["approved"] is False
-        assert "120" in result["reason"] or "timeout" in result["reason"].lower()
+        assert "30" in result["reason"] or "timeout" in result["reason"].lower()
 
     @pytest.mark.asyncio
     async def test_timeout_does_not_write_token(self, monkeypatch):

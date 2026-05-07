@@ -88,10 +88,11 @@ class BankingChatController:
         """Run the active banking agent with verified identity context.
 
         Event types emitted:
-        - ``token``  — text chunk from the model
-        - ``break``  — agent handoff; data is the new active agent name
-        - ``done``   — end of stream
-        - ``error``  — error message
+        - ``token``     — text chunk from the model
+        - ``tool_use``  — model is invoking a tool; data is the tool name
+        - ``break``     — agent handoff; data is the new active agent name
+        - ``done``      — end of stream
+        - ``error``     — error message
         """
         request = exec_ctx.request
         user_id = (request.state.get("user_id") or body.user_id or "").lower()
@@ -136,12 +137,19 @@ class BankingChatController:
                 fallback = self._default_unauth
             return self._agent_registry.get(active, fallback)
 
+        # Set the WS routing context BEFORE returning EventStream — the
+        # handler's task must hold this var so every __anext__() task
+        # spawned by EventStream's framing loop inherits a copy via PEP
+        # 567 context copy.  Setting it inside the async generator only
+        # affects the first __anext__() task; subsequent chunk advances
+        # would see ``None`` and the EventForwarder signal handlers
+        # would early-return without forwarding to the WebSocket.
+        if user_id:
+            current_user_id.set(user_id)
+
         async def generate():
-            if user_id:
-                current_user_id.set(user_id)
             try:
                 conv_id = body.conversation_id
-                chunk_size = 40
                 max_handoffs = 8
 
                 active = self._active_agent_store.get(conv_id, default_agent)
@@ -151,16 +159,21 @@ class BankingChatController:
                 while True:
                     agent, runner = _resolve_agent(active)
 
-                    response = await runner.run(
+                    seen_tool_uses: set[str] = set()
+                    async for chunk in await runner.run_stream(
                         agent,
                         prompt,
                         conversation_id=f"{conv_id}:{active}",
                         execution_context=exec_ctx,
                         metadata={"conversation_id": conv_id},
-                    )
-                    content = response.content or ""
-                    for i in range(0, len(content), chunk_size):
-                        yield ServerSentEvent(event="token", data=content[i : i + chunk_size])
+                    ):
+                        if chunk.delta:
+                            yield ServerSentEvent(event="token", data=chunk.delta)
+                        elif chunk.tool_call_delta is not None:
+                            tcd = chunk.tool_call_delta
+                            if tcd.name and tcd.tool_use_id not in seen_tool_uses:
+                                seen_tool_uses.add(tcd.tool_use_id)
+                                yield ServerSentEvent(event="tool_use", data=tcd.name)
 
                     new_active = self._active_agent_store.get(conv_id, default_agent)
                     if new_active == active or handoffs >= max_handoffs:
@@ -190,34 +203,42 @@ class BankingChatController:
     async def stream_public(self, body: Json[ChatRequest], exec_ctx: ExecutionContext) -> EventStream:
         """Public (unauthenticated) chat — routes only to UnauthenticatedCRMAgent.
 
-        Event types emitted: ``token``, ``break``, ``done``, ``error``.
+        Event types emitted: ``token``, ``tool_use``, ``break``, ``done``, ``error``.
         No user_id is required; WS events are forwarded via the ``__public__`` channel.
         """
         conv_id = body.conversation_id
         user_messages = [m for m in body.messages if m.role == "user"]
         raw_message = user_messages[-1].content if user_messages else ""
 
+        # Set on the handler task before returning EventStream — see the
+        # comment in stream() for why this MUST NOT live inside generate().
+        current_user_id.set(PUBLIC_WS_USER)
+
         async def generate():
-            current_user_id.set(PUBLIC_WS_USER)
             try:
                 active = self._active_agent_store.get(conv_id, UNAUTH_CRM_AGENT_NAME)
                 prompt = raw_message
                 handoffs = 0
-                chunk_size = 40
                 max_handoffs = 4
 
                 while True:
                     agent, runner = self._agent_registry.get(active, self._default_unauth)
-                    response = await runner.run(
+
+                    seen_tool_uses: set[str] = set()
+                    async for chunk in await runner.run_stream(
                         agent,
                         prompt,
                         conversation_id=f"{conv_id}:{active}",
                         execution_context=exec_ctx,
                         metadata={"conversation_id": conv_id},
-                    )
-                    content = response.content or ""
-                    for i in range(0, len(content), chunk_size):
-                        yield ServerSentEvent(event="token", data=content[i : i + chunk_size])
+                    ):
+                        if chunk.delta:
+                            yield ServerSentEvent(event="token", data=chunk.delta)
+                        elif chunk.tool_call_delta is not None:
+                            tcd = chunk.tool_call_delta
+                            if tcd.name and tcd.tool_use_id not in seen_tool_uses:
+                                seen_tool_uses.add(tcd.tool_use_id)
+                                yield ServerSentEvent(event="tool_use", data=tcd.name)
 
                     new_active = self._active_agent_store.get(conv_id, UNAUTH_CRM_AGENT_NAME)
                     if new_active == active or handoffs >= max_handoffs:

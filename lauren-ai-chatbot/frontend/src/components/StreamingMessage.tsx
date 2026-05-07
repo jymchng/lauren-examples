@@ -10,9 +10,10 @@ import { MarkdownContent } from "@/components/MessageBubble";
 
 interface StreamingMessageProps {
   content: string;
+  toolHint?: string | null;
 }
 
-export function StreamingMessage({ content }: StreamingMessageProps) {
+export function StreamingMessage({ content, toolHint }: StreamingMessageProps) {
   return (
     <div className="flex w-full mb-4 justify-start">
       <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-xs font-bold mr-2 mt-1">
@@ -31,10 +32,15 @@ export function StreamingMessage({ content }: StreamingMessageProps) {
               )}
               aria-hidden
             />
+            {toolHint && (
+              <div className="mt-1 text-[11px] italic text-muted-foreground">
+                {toolHint}…
+              </div>
+            )}
           </>
         ) : (
           <span className="text-muted-foreground italic text-xs">
-            Thinking…
+            {toolHint ? `${toolHint}…` : "Thinking…"}
           </span>
         )}
       </div>

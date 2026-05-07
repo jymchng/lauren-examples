@@ -134,7 +134,7 @@ export function DemoInfoPanel() {
             agentic loop with an{" "}
             <code className="font-mono text-[10px]">asyncio.Future</code>, sends a{" "}
             <code className="font-mono text-[10px]">transfer_approval_request</code>{" "}
-            event over WebSocket, and waits (up to 120 s) for the user to click{" "}
+            event over WebSocket, and waits (up to 30 s) for the user to click{" "}
             <strong className="text-foreground">Confirm</strong> or{" "}
             <strong className="text-foreground">Cancel</strong> in the approval
             dialog. The Transfer Agent only proceeds if a signed one-shot approval

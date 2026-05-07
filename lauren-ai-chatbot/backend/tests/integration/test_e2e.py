@@ -16,7 +16,7 @@ Test groups:
 
 import json
 import os
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import httpx
 import pytest
@@ -32,7 +32,35 @@ os.environ.setdefault("OPENROUTER_API_KEY", "dummy-key-for-tests")
 os.environ.setdefault("PORT", "8002")
 
 from app.crypto.crypto_service import CryptoService  # noqa: E402
-from lauren_ai._transport import Completion, TokenUsage  # noqa: E402
+from lauren_ai._transport import Completion, CompletionChunk, TokenUsage  # noqa: E402
+
+
+# ---------------------------------------------------------------------------
+# run_stream() mock helper
+# ---------------------------------------------------------------------------
+
+
+async def _stream_text(text: str):
+    """Async generator yielding text as a single chunk + final stop chunk."""
+    if text:
+        yield CompletionChunk(delta=text)
+    yield CompletionChunk(
+        delta="",
+        stop_reason="end_turn",
+        usage=TokenUsage(input_tokens=10, output_tokens=max(1, len(text) // 4)),
+    )
+
+
+def _patch_run_stream_with(content: str):
+    """Patch AgentRunnerBase.run_stream to yield ``content`` as one chunk."""
+
+    async def fake_run_stream(self, agent, prompt, **kwargs):
+        return _stream_text(content)
+
+    return patch(
+        "lauren_ai._agents._runner.AgentRunnerBase.run_stream",
+        new=fake_run_stream,
+    )
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -170,11 +198,10 @@ class TestSignatureSecurityE2E:
     @pytest.mark.asyncio
     async def test_valid_signature_streams_response(self, client):
         body = _banking_body(user_id="alice")
-        mock_response = AsyncMock()
-        mock_response.content = "Your balance is $5,000.00"
-
-        with patch("lauren_ai._agents._runner.AgentRunnerBase.run", return_value=mock_response):
-            resp = await client.post("/api/banking/chat", content=body, headers=_signed_headers(body))
+        with _patch_run_stream_with("Your balance is $5,000.00"):
+            resp = await client.post(
+                "/api/banking/chat", content=body, headers=_signed_headers(body)
+            )
 
         assert resp.status_code == 200
         assert "text/event-stream" in resp.headers["content-type"]
@@ -183,11 +210,10 @@ class TestSignatureSecurityE2E:
     async def test_body_cached_guard_and_controller_both_read_it(self, client):
         """Json[T] should succeed even though the guard already consumed the body."""
         body = _banking_body(user_id="bob")
-        mock_response = AsyncMock()
-        mock_response.content = "Bob's balance"
-
-        with patch("lauren_ai._agents._runner.AgentRunnerBase.run", return_value=mock_response):
-            resp = await client.post("/api/banking/chat", content=body, headers=_signed_headers(body))
+        with _patch_run_stream_with("Bob's balance"):
+            resp = await client.post(
+                "/api/banking/chat", content=body, headers=_signed_headers(body)
+            )
 
         assert resp.status_code == 200
 

@@ -7,7 +7,7 @@ Flow
    ``ApprovalService``.
 3. Push a ``transfer_approval_request`` WebSocket event to the authenticated
    user's browser connections via ``EventForwarder``.
-4. ``asyncio.wait_for(asyncio.shield(fut), timeout=120)`` blocks the agent turn
+4. ``asyncio.wait_for(asyncio.shield(fut), timeout=30)`` blocks the agent turn
    while the SSE keep_alive (15 s) holds the HTTP connection open.
 5. On approval: write a signed one-shot token into
    ``ctx.agent_context.metadata["transfer_approved"]``.  ``TransferFundsTool``
@@ -47,7 +47,7 @@ class ApprovalTool:
 
     Always call this tool FIRST with the exact transfer details before calling
     ``TransferFundsTool``.  The tool blocks until the user approves or declines
-    via the browser dialog (120 s timeout).
+    via the browser dialog (30 s timeout).
 
     Args:
         to_user: Recipient user ID (alice, bob, or charlie).
@@ -102,7 +102,7 @@ class ApprovalTool:
         )
 
         try:
-            timeout = 5
+            timeout = 30
             approved = await asyncio.wait_for(asyncio.shield(fut), timeout=timeout)
         except asyncio.TimeoutError:
             return {

@@ -3,7 +3,7 @@
 
 import json
 import os
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import httpx
 import pytest
@@ -15,6 +15,7 @@ os.environ.setdefault("OPENROUTER_API_KEY", "dummy")
 os.environ.setdefault("PORT", "8003")
 
 from app.crypto.crypto_service import CryptoService  # noqa: E402
+from lauren_ai._transport import CompletionChunk, ToolCallDelta, TokenUsage  # noqa: E402
 
 _SECRET = os.environ["PAYLOAD_SECRET"]
 
@@ -56,6 +57,34 @@ def _parse_sse(raw: bytes) -> list[dict]:
             events.append(current)
             current = {}
     return events
+
+
+# ---------------------------------------------------------------------------
+# run_stream() mock helpers
+# ---------------------------------------------------------------------------
+
+
+async def _stream_text(text: str):
+    """Async generator yielding text as a single chunk + final stop chunk."""
+    if text:
+        yield CompletionChunk(delta=text)
+    yield CompletionChunk(
+        delta="",
+        stop_reason="end_turn",
+        usage=TokenUsage(input_tokens=10, output_tokens=max(1, len(text) // 4)),
+    )
+
+
+def _patch_run_stream_with(content: str):
+    """Patch AgentRunnerBase.run_stream to yield ``content`` as one chunk."""
+
+    async def fake_run_stream(self, agent, prompt, **kwargs):
+        return _stream_text(content)
+
+    return patch(
+        "lauren_ai._agents._runner.AgentRunnerBase.run_stream",
+        new=fake_run_stream,
+    )
 
 
 @pytest.fixture(scope="module")
@@ -156,68 +185,47 @@ class TestBankingChatValidUsers:
     @pytest.mark.asyncio
     async def test_alice_gets_200(self, client):
         body = _body(user_id="alice")
-        mock_response = AsyncMock()
-        mock_response.content = "Your balance is $5,000.00"
-
-        with patch("lauren_ai._agents._runner.AgentRunnerBase.run", return_value=mock_response):
+        with _patch_run_stream_with("Your balance is $5,000.00"):
             resp = await client.post("/api/banking/chat", content=body, headers=_signed(body))
-
         assert resp.status_code == 200
 
     @pytest.mark.asyncio
     async def test_bob_gets_200(self, client):
         body = _body(user_id="bob", content="Show my balance")
-        mock_response = AsyncMock()
-        mock_response.content = "Bob's balance is $3,200.00"
-
-        with patch("lauren_ai._agents._runner.AgentRunnerBase.run", return_value=mock_response):
+        with _patch_run_stream_with("Bob's balance is $3,200.00"):
             resp = await client.post("/api/banking/chat", content=body, headers=_signed(body))
-
         assert resp.status_code == 200
 
     @pytest.mark.asyncio
     async def test_charlie_gets_200(self, client):
         body = _body(user_id="charlie", content="How much do I have?")
-        mock_response = AsyncMock()
-        mock_response.content = "Charlie's balance is $1,800.00"
-
-        with patch("lauren_ai._agents._runner.AgentRunnerBase.run", return_value=mock_response):
+        with _patch_run_stream_with("Charlie's balance is $1,800.00"):
             resp = await client.post("/api/banking/chat", content=body, headers=_signed(body))
-
         assert resp.status_code == 200
 
     @pytest.mark.asyncio
     async def test_response_is_event_stream(self, client):
         body = _body(user_id="alice")
-        mock_response = AsyncMock()
-        mock_response.content = "Hello Alice"
-
-        with patch("lauren_ai._agents._runner.AgentRunnerBase.run", return_value=mock_response):
+        with _patch_run_stream_with("Hello Alice"):
             resp = await client.post("/api/banking/chat", content=body, headers=_signed(body))
-
         assert "text/event-stream" in resp.headers["content-type"]
 
     @pytest.mark.asyncio
     async def test_tokens_stream_in_chunks(self, client):
         body = _body(user_id="alice")
-        mock_response = AsyncMock()
-        mock_response.content = "A" * 100  # long enough to produce multiple chunks
-
-        with patch("lauren_ai._agents._runner.AgentRunnerBase.run", return_value=mock_response):
+        with _patch_run_stream_with("A" * 100):
             resp = await client.post("/api/banking/chat", content=body, headers=_signed(body))
 
         events = _parse_sse(resp.content)
         tokens = [e["data"] for e in events if e.get("event") == "token"]
-        assert len(tokens) > 1
+        # run_stream yields the mocked content as a single chunk; concatenated
+        # tokens equal the original content (real transports deliver many).
         assert "".join(tokens) == "A" * 100
 
     @pytest.mark.asyncio
     async def test_done_event_is_last(self, client):
         body = _body(user_id="alice")
-        mock_response = AsyncMock()
-        mock_response.content = "Balance: $5,000"
-
-        with patch("lauren_ai._agents._runner.AgentRunnerBase.run", return_value=mock_response):
+        with _patch_run_stream_with("Balance: $5,000"):
             resp = await client.post("/api/banking/chat", content=body, headers=_signed(body))
 
         events = [e for e in _parse_sse(resp.content) if "event" in e]
@@ -226,10 +234,7 @@ class TestBankingChatValidUsers:
     @pytest.mark.asyncio
     async def test_empty_response_yields_only_done(self, client):
         body = _body(user_id="alice")
-        mock_response = AsyncMock()
-        mock_response.content = ""
-
-        with patch("lauren_ai._agents._runner.AgentRunnerBase.run", return_value=mock_response):
+        with _patch_run_stream_with(""):
             resp = await client.post("/api/banking/chat", content=body, headers=_signed(body))
 
         events = [e for e in _parse_sse(resp.content) if "event" in e]
@@ -239,9 +244,12 @@ class TestBankingChatValidUsers:
     async def test_runner_exception_emits_error_event(self, client):
         body = _body(user_id="alice")
 
+        async def raising_run_stream(self, agent, prompt, **kwargs):
+            raise RuntimeError("LLM exploded")
+
         with patch(
-            "lauren_ai._agents._runner.AgentRunnerBase.run",
-            side_effect=RuntimeError("LLM exploded"),
+            "lauren_ai._agents._runner.AgentRunnerBase.run_stream",
+            new=raising_run_stream,
         ):
             resp = await client.post("/api/banking/chat", content=body, headers=_signed(body))
 
@@ -253,13 +261,13 @@ class TestBankingChatValidUsers:
         body = _body(user_id="alice", conversation_id="conv-123")
         received_kwargs: list[dict] = []
 
-        async def capture(agent, prompt, **kwargs):
+        async def capture(self, agent, prompt, **kwargs):
             received_kwargs.append(kwargs)
-            m = AsyncMock()
-            m.content = "ok"
-            return m
+            return _stream_text("ok")
 
-        with patch("lauren_ai._agents._runner.AgentRunnerBase.run", side_effect=capture):
+        with patch(
+            "lauren_ai._agents._runner.AgentRunnerBase.run_stream", new=capture
+        ):
             await client.post("/api/banking/chat", content=body, headers=_signed(body))
 
         # The controller namespaces the conversation ID per-agent to prevent
@@ -274,13 +282,13 @@ class TestBankingChatValidUsers:
         body = _body(user_id="alice")
         received_kwargs: list[dict] = []
 
-        async def capture(agent, prompt, **kwargs):
+        async def capture(self, agent, prompt, **kwargs):
             received_kwargs.append(kwargs)
-            m = AsyncMock()
-            m.content = "ok"
-            return m
+            return _stream_text("ok")
 
-        with patch("lauren_ai._agents._runner.AgentRunnerBase.run", side_effect=capture):
+        with patch(
+            "lauren_ai._agents._runner.AgentRunnerBase.run_stream", new=capture
+        ):
             await client.post("/api/banking/chat", content=body, headers=_signed(body))
 
         exec_ctx = received_kwargs[0].get("execution_context")
@@ -293,13 +301,13 @@ class TestBankingChatValidUsers:
         body = _body(user_id="alice", content="What is my name?")
         received_prompts: list[str] = []
 
-        async def capture(agent, prompt, **kwargs):
+        async def capture(self, agent, prompt, **kwargs):
             received_prompts.append(prompt)
-            m = AsyncMock()
-            m.content = "Alice Johnson"
-            return m
+            return _stream_text("Alice Johnson")
 
-        with patch("lauren_ai._agents._runner.AgentRunnerBase.run", side_effect=capture):
+        with patch(
+            "lauren_ai._agents._runner.AgentRunnerBase.run_stream", new=capture
+        ):
             await client.post("/api/banking/chat", content=body, headers=_signed(body))
 
         assert received_prompts
@@ -309,13 +317,44 @@ class TestBankingChatValidUsers:
     @pytest.mark.asyncio
     async def test_x_response_time_header_present(self, client):
         body = _body(user_id="alice")
-        mock_response = AsyncMock()
-        mock_response.content = "ok"
-
-        with patch("lauren_ai._agents._runner.AgentRunnerBase.run", return_value=mock_response):
+        with _patch_run_stream_with("ok"):
             resp = await client.post("/api/banking/chat", content=body, headers=_signed(body))
 
         assert "x-response-time" in resp.headers
+
+    @pytest.mark.asyncio
+    async def test_tool_use_event_emitted_when_model_calls_tool(self, client):
+        """Each tool call surfaces a tool_use SSE event with the tool name."""
+        body = _body(user_id="alice")
+
+        async def fake_run_stream(self, agent, prompt, **kwargs):
+            async def gen():
+                yield CompletionChunk(
+                    tool_call_delta=ToolCallDelta(
+                        tool_use_id="tu1",
+                        name="get_balance_tool",
+                        input_delta="{}",
+                    ),
+                )
+                yield CompletionChunk(
+                    delta="",
+                    stop_reason="end_turn",
+                    usage=TokenUsage(input_tokens=10, output_tokens=2),
+                )
+            return gen()
+
+        with patch(
+            "lauren_ai._agents._runner.AgentRunnerBase.run_stream",
+            new=fake_run_stream,
+        ):
+            resp = await client.post(
+                "/api/banking/chat", content=body, headers=_signed(body)
+            )
+
+        events = _parse_sse(resp.content)
+        tool_use_events = [e for e in events if e.get("event") == "tool_use"]
+        assert tool_use_events
+        assert tool_use_events[0]["data"] == "get_balance_tool"
 
     @pytest.mark.asyncio
     async def test_two_hop_handoff_crm_response_not_lost(self, client):
@@ -345,22 +384,28 @@ class TestBankingChatValidUsers:
         get_iter = iter(get_seq)
         call_count = 0
 
-        async def mock_run(agent, prompt, **kwargs):
+        async def mock_run_stream(self, agent, prompt, **kwargs):
             nonlocal call_count
             call_count += 1
-            m = AsyncMock()
             if call_count == 1:
-                m.content = "Handing you to Transfer Agent."
+                content = "Handing you to Transfer Agent."
             elif call_count == 2:
-                m.content = "Transfer complete. $100 sent to Bob."
+                content = "Transfer complete. $100 sent to Bob."
             else:
-                m.content = "Transfer confirmed. Anything else I can help with?"
-            return m
+                content = "Transfer confirmed. Anything else I can help with?"
+            return _stream_text(content)
 
         with (
             patch.object(ActiveAgentStore, "get", side_effect=lambda *_: next(get_iter)),
-            patch.object(ActiveAgentStore, "pop_pending_summary", return_value="Transfer of $100 to Bob done"),
-            patch("lauren_ai._agents._runner.AgentRunnerBase.run", side_effect=mock_run),
+            patch.object(
+                ActiveAgentStore,
+                "pop_pending_summary",
+                return_value="Transfer of $100 to Bob done",
+            ),
+            patch(
+                "lauren_ai._agents._runner.AgentRunnerBase.run_stream",
+                new=mock_run_stream,
+            ),
         ):
             resp = await client.post("/api/banking/chat", content=body, headers=_signed(body))
 

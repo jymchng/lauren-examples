@@ -13,6 +13,7 @@ import { SendHorizonal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MessageBubble, type Message } from "@/components/MessageBubble";
 import { StreamingMessage } from "@/components/StreamingMessage";
+import { ToolUseBubble } from "@/components/ToolUseBubble";
 import { generateId } from "@/lib/uuid";
 
 export type { Message };
@@ -34,6 +35,41 @@ function parseSSEChunk(chunk: string): Array<{ event: string; data: string }> {
     }
   }
   return events;
+}
+
+// Friendly status hints shown while a tool runs.  Names match the snake_case
+// keys produced by `@tool()` (CamelCase class → snake_case).
+const TOOL_LABELS: Record<string, string> = {
+  get_balance_tool: "Looking up your balance",
+  get_transaction_history_tool: "Fetching transaction history",
+  check_authentication_tool: "Verifying your session",
+  transfer_funds_tool: "Executing the transfer",
+  approval_tool: "Awaiting your approval",
+};
+
+function toolHintFor(name: string): string {
+  if (name.startsWith("handoff_to")) return "Routing to a specialist agent";
+  return TOOL_LABELS[name] ?? `Running ${name.replace(/_/g, " ")}`;
+}
+
+// Past-tense labels for the persistent in-thread tool bubble (vs. the
+// progressive form used in the streaming hint).
+const TOOL_PAST_LABELS: Record<string, string> = {
+  get_balance_tool: "🔍 Looked up your balance",
+  get_transaction_history_tool: "📜 Fetched transaction history",
+  transfer_funds_tool: "💸 Executed the transfer",
+  approval_tool: "🛂 Awaited your approval",
+};
+
+// Tools deliberately NOT surfaced as a persistent bubble:
+//   - check_authentication_tool   (runs every turn — noise)
+//   - handoff_to_*                (already covered by the `break` event)
+const TOOL_BUBBLE_SKIP = new Set(["check_authentication_tool"]);
+
+function bubbleLabelFor(name: string): string | null {
+  if (TOOL_BUBBLE_SKIP.has(name)) return null;
+  if (name.startsWith("handoff_to")) return null;
+  return TOOL_PAST_LABELS[name] ?? `⚙️ Used ${name.replace(/_/g, " ")}`;
 }
 
 interface BankingChatInterfaceProps {
@@ -70,6 +106,7 @@ export function BankingChatInterface({
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
+  const [toolHint, setToolHint] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -84,6 +121,7 @@ export function BankingChatInterface({
       prevUserIdRef.current = userId;
       setInput("");
       setStreamingContent("");
+      setToolHint(null);
       setError(null);
       setStreaming(false);
     }
@@ -118,6 +156,7 @@ export function BankingChatInterface({
       onMessagesChange(localMessages);
       setStreaming(true);
       setStreamingContent("");
+      setToolHint(null);
 
       try {
         const endpoint = userId ? "/api/banking/chat" : "/api/banking/chat/public";
@@ -126,7 +165,9 @@ export function BankingChatInterface({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             messages: localMessages
-              .filter((m) => m.role !== "system")
+              // system = handoff dividers, tool = tool-use record bubbles —
+              // both are local UI artifacts and must not be sent to the LLM.
+              .filter((m) => m.role !== "system" && m.role !== "tool")
               .map(({ role, content }) => ({ role, content })),
             user_id: userId ?? "",
             conversation_id: conversationId,
@@ -158,8 +199,23 @@ export function BankingChatInterface({
             const events = parseSSEChunk(part + "\n\n");
             for (const { event, data } of events) {
               if (event === "token") {
+                // Tokens resuming means the tool is done — clear any hint.
+                setToolHint(null);
                 accumulated += data;
                 setStreamingContent(accumulated);
+              } else if (event === "tool_use") {
+                setToolHint(toolHintFor(data));
+                // Persistent in-thread bubble (filtered — see TOOL_BUBBLE_SKIP).
+                const bubbleLabel = bubbleLabelFor(data);
+                if (bubbleLabel) {
+                  const bubble: Message = {
+                    id: generateId(),
+                    role: "tool",
+                    content: bubbleLabel,
+                  };
+                  localMessages = [...localMessages, bubble];
+                  onMessagesChange(localMessages);
+                }
               } else if (event === "done") {
                 const assistantMessage: Message = {
                   id: generateId(),
@@ -169,6 +225,7 @@ export function BankingChatInterface({
                 localMessages = [...localMessages, assistantMessage];
                 onMessagesChange(localMessages);
                 setStreamingContent("");
+                setToolHint(null);
                 setStreaming(false);
                 return;
               } else if (event === "break") {
@@ -184,6 +241,7 @@ export function BankingChatInterface({
                   onMessagesChange(localMessages);
                 }
                 setStreamingContent("");
+                setToolHint(null);
                 accumulated = "";
               } else if (event === "error") {
                 throw new Error(data);
@@ -210,6 +268,7 @@ export function BankingChatInterface({
       } finally {
         setStreaming(false);
         setStreamingContent("");
+        setToolHint(null);
         inputRef.current?.focus();
         onComplete?.();
       }
@@ -246,11 +305,15 @@ export function BankingChatInterface({
           </div>
         )}
 
-        {messages.map((message) => (
-          <MessageBubble key={message.id} message={message} />
-        ))}
+        {messages.map((message) =>
+          message.role === "tool" ? (
+            <ToolUseBubble key={message.id} label={message.content} />
+          ) : (
+            <MessageBubble key={message.id} message={message} />
+          )
+        )}
 
-        {streaming && <StreamingMessage content={streamingContent} />}
+        {streaming && <StreamingMessage content={streamingContent} toolHint={toolHint} />}
       </div>
 
       {/* Error banner */}
