@@ -1,4 +1,3 @@
-
 # MockTransport and tool schema generation require runtime type annotations.
 """End-to-end integration tests for the SecureBank AI Chatbot backend.
 
@@ -401,12 +400,8 @@ class TestModuleInjectsWiring:
 
         loop = asyncio.new_event_loop()
         try:
-            ar = loop.run_until_complete(
-                app.container.resolve(AgentRunner[AuthenticatedCRMAgent])
-            )
-            tr = loop.run_until_complete(
-                app.container.resolve(AgentRunner[BankTransferAgent])
-            )
+            ar = loop.run_until_complete(app.container.resolve(AgentRunner[AuthenticatedCRMAgent]))
+            tr = loop.run_until_complete(app.container.resolve(AgentRunner[BankTransferAgent]))
         finally:
             loop.close()
         assert isinstance(ar, AgentRunnerBase)
@@ -425,12 +420,8 @@ class TestModuleInjectsWiring:
 
         loop = asyncio.new_event_loop()
         try:
-            ar = loop.run_until_complete(
-                app.container.resolve(AgentRunner[AuthenticatedCRMAgent])
-            )
-            dr = loop.run_until_complete(
-                app.container.resolve(AgentRunner[DisputesAgent])
-            )
+            ar = loop.run_until_complete(app.container.resolve(AgentRunner[AuthenticatedCRMAgent]))
+            dr = loop.run_until_complete(app.container.resolve(AgentRunner[DisputesAgent]))
         finally:
             loop.close()
         assert ar is not dr
@@ -444,9 +435,7 @@ class TestModuleInjectsWiring:
 
         loop = asyncio.new_event_loop()
         try:
-            tr = loop.run_until_complete(
-                app.container.resolve(AgentRunner[BankTransferAgent])
-            )
+            tr = loop.run_until_complete(app.container.resolve(AgentRunner[BankTransferAgent]))
         finally:
             loop.close()
         assert isinstance(tr, AgentRunnerBase)

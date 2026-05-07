@@ -1,4 +1,3 @@
-
 """Regression tests for agent tool-schema isolation.
 
 Each `@agent()`-decorated class in the banking chatbot declares its tool set
@@ -124,8 +123,7 @@ class TestUnauthCRMSchemaMatchesDeclared:
         actual = set(_schema_names(runner, UnauthenticatedCRMAgent))
 
         assert "search_public_info" in actual, (
-            f"UnauthCRM schema missing knowledge-derived tool "
-            f"'search_public_info'.  Actual: {sorted(actual)}"
+            f"UnauthCRM schema missing knowledge-derived tool 'search_public_info'.  Actual: {sorted(actual)}"
         )
 
     def test_schema_count_matches_declared_plus_knowledge(self, app):
@@ -145,6 +143,7 @@ class TestAuthCRMSchemaMatchesDeclared:
 
     def test_schemas_match_declared(self, app):
         from app.ai.agents.auth_crm_agent import AuthenticatedCRMAgent
+
         runner = _resolve_runner(app, AgentRunner[AuthenticatedCRMAgent])
         actual = sorted(_schema_names(runner, AuthenticatedCRMAgent))
         expected = sorted(_expected_tool_names(AuthenticatedCRMAgent))
@@ -153,6 +152,7 @@ class TestAuthCRMSchemaMatchesDeclared:
 
     def test_schema_count_matches_declared(self, app):
         from app.ai.agents.auth_crm_agent import AuthenticatedCRMAgent
+
         runner = _resolve_runner(app, AgentRunner[AuthenticatedCRMAgent])
         actual = _schema_names(runner, AuthenticatedCRMAgent)
         expected = _expected_tool_names(AuthenticatedCRMAgent)
@@ -242,6 +242,7 @@ class TestNoCrossAgentLeakage:
     def test_auth_crm_does_not_see_approval_or_transfer(self, app):
         """AuthCRM hands off to TransferAgent — it must NOT call those tools itself."""
         from app.ai.agents.auth_crm_agent import AuthenticatedCRMAgent
+
         runner = _resolve_runner(app, AgentRunner[AuthenticatedCRMAgent])
         names = set(_schema_names(runner, AuthenticatedCRMAgent))
 
@@ -280,6 +281,7 @@ class TestNoCrossAgentLeakage:
     def test_auth_crm_does_not_see_search_public_info(self, app):
         """``search_public_info`` is attached to the UNAUTH module only."""
         from app.ai.agents.auth_crm_agent import AuthenticatedCRMAgent
+
         runner = _resolve_runner(app, AgentRunner[AuthenticatedCRMAgent])
         names = set(_schema_names(runner, AuthenticatedCRMAgent))
         assert self._SEARCH_PUBLIC_INFO_TOOL not in names, (

@@ -1,4 +1,3 @@
-
 """Unit tests for ApprovalTool — HITL gate that blocks until user approves/declines."""
 
 from __future__ import annotations

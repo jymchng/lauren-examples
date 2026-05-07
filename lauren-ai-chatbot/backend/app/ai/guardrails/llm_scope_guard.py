@@ -94,14 +94,13 @@ class LLMScopeGuard:
         )
         self._inner = LLMGuardrail(
             llm=_llm_service,
-            prompt=_JUDGE_PROMPT.replace("{agent_role}", agent_role)
-                                .replace("{allowed_scope}", allowed_scope),
+            prompt=_JUDGE_PROMPT.replace("{agent_role}", agent_role).replace("{allowed_scope}", allowed_scope),
             block_if="YES",
-            action="modify",              # graceful redirect — no SSE error event
+            action="modify",  # graceful redirect — no SSE error event
             violation_message=redirect_message,
             system=_JUDGE_SYSTEM,
-            max_tokens=5,                # YES/NO needs at most 1 token
-            temperature=0.0,             # deterministic
+            max_tokens=5,  # YES/NO needs at most 1 token
+            temperature=0.0,  # deterministic
             guardrail_name=guardrail_name,
         )
 

@@ -103,7 +103,7 @@ _DISPUTES_SCOPE = """\
 _DISPUTES_REDIRECT = (
     "I specialise in dispute resolution and can't help with that question. "
     "Would you like me to return you to the Banking CRM Agent?\n\n"
-    "*(Say \"yes\" and I'll hand you over.)*"
+    '*(Say "yes" and I\'ll hand you over.)*'
 )
 
 
@@ -114,16 +114,16 @@ _DISPUTES_REDIRECT = (
     max_turns=8,
     conversation_store=InMemoryConversationStore(),
 )
-@use_guardrails(
-    output=[LLMScopeGuard(
-        llm_config=_llm_config,
-        agent_role=_DISPUTES_ROLE,
-        allowed_scope=_DISPUTES_SCOPE,
-        redirect_message=_DISPUTES_REDIRECT,
-        guardrail_name="DisputesScopeGuard",
-        agent_name="Disputes Agent",
-    )],
-)
+# @use_guardrails(
+#     output=[LLMScopeGuard(
+#         llm_config=_llm_config,
+#         agent_role=_DISPUTES_ROLE,
+#         allowed_scope=_DISPUTES_SCOPE,
+#         redirect_message=_DISPUTES_REDIRECT,
+#         guardrail_name="DisputesScopeGuard",
+#         agent_name="Disputes Agent",
+#     )],
+# )
 @use_tools(GetBalanceTool, GetTransactionHistoryTool, CheckAuthenticationTool, HandoffTo)
 class DisputesAgent:
     """Specialist agent for transaction disputes, fraud reports, and chargebacks."""

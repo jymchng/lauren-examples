@@ -119,7 +119,6 @@ _DisputesModule = AgentModule.for_root(
 )
 
 
-
 # ── 3. CostTracker ──────────────────────────────────────────────────────────
 
 _cost_tracker = CostTracker(pricing=default_pricing_table())

@@ -1,4 +1,3 @@
-
 """Unit tests for ApprovalService — manages pending HITL transfer approvals."""
 
 from __future__ import annotations

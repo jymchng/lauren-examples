@@ -1,4 +1,3 @@
-
 # @tool() uses inspect.signature() at decoration time; PEP 563 breaks it.
 """Unit tests for banking tools: GetBalanceTool, TransferFundsTool, GetTransactionHistoryTool.
 

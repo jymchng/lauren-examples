@@ -1,4 +1,3 @@
-
 """End-to-end tests for POST /api/banking/chat — the BankingChatController."""
 
 import json

@@ -1,4 +1,3 @@
-
 """Unit tests for ApprovalController — HTTP endpoint for browser Yes/No responses."""
 
 from __future__ import annotations

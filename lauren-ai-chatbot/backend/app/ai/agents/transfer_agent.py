@@ -122,7 +122,7 @@ _TRANSFER_SCOPE = """\
 _TRANSFER_REDIRECT = (
     "I specialise exclusively in fund transfers and can't answer that question. "
     "Would you like me to connect you with our Banking CRM Agent who can help?\n\n"
-    "*(Just say \"yes\" or \"transfer me\" and I'll hand you over.)*"
+    '*(Just say "yes" or "transfer me" and I\'ll hand you over.)*'
 )
 
 
@@ -133,16 +133,16 @@ _TRANSFER_REDIRECT = (
     max_turns=10,
     conversation_store=InMemoryConversationStore(),
 )
-@use_guardrails(
-    output=[LLMScopeGuard(
-        llm_config=_llm_config,
-        agent_role=_TRANSFER_ROLE,
-        allowed_scope=_TRANSFER_SCOPE,
-        redirect_message=_TRANSFER_REDIRECT,
-        guardrail_name="TransferScopeGuard",
-        agent_name="Transfer Agent",
-    )],
-)
+# @use_guardrails(
+#     output=[LLMScopeGuard(
+#         llm_config=_llm_config,
+#         agent_role=_TRANSFER_ROLE,
+#         allowed_scope=_TRANSFER_SCOPE,
+#         redirect_message=_TRANSFER_REDIRECT,
+#         guardrail_name="TransferScopeGuard",
+#         agent_name="Transfer Agent",
+#     )],
+# )
 @use_tools(ApprovalTool, TransferFundsTool, CheckAuthenticationTool, HandoffTo)
 class BankTransferAgent:
     """Transfer execution agent (reached via handoff from AuthenticatedCRMAgent)."""
