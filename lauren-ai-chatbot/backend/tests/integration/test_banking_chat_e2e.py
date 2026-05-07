@@ -265,9 +265,7 @@ class TestBankingChatValidUsers:
             received_kwargs.append(kwargs)
             return _stream_text("ok")
 
-        with patch(
-            "lauren_ai._agents._runner.AgentRunnerBase.run_stream", new=capture
-        ):
+        with patch("lauren_ai._agents._runner.AgentRunnerBase.run_stream", new=capture):
             await client.post("/api/banking/chat", content=body, headers=_signed(body))
 
         # The controller namespaces the conversation ID per-agent to prevent
@@ -286,9 +284,7 @@ class TestBankingChatValidUsers:
             received_kwargs.append(kwargs)
             return _stream_text("ok")
 
-        with patch(
-            "lauren_ai._agents._runner.AgentRunnerBase.run_stream", new=capture
-        ):
+        with patch("lauren_ai._agents._runner.AgentRunnerBase.run_stream", new=capture):
             await client.post("/api/banking/chat", content=body, headers=_signed(body))
 
         exec_ctx = received_kwargs[0].get("execution_context")
@@ -305,9 +301,7 @@ class TestBankingChatValidUsers:
             received_prompts.append(prompt)
             return _stream_text("Alice Johnson")
 
-        with patch(
-            "lauren_ai._agents._runner.AgentRunnerBase.run_stream", new=capture
-        ):
+        with patch("lauren_ai._agents._runner.AgentRunnerBase.run_stream", new=capture):
             await client.post("/api/banking/chat", content=body, headers=_signed(body))
 
         assert received_prompts
@@ -341,15 +335,14 @@ class TestBankingChatValidUsers:
                     stop_reason="end_turn",
                     usage=TokenUsage(input_tokens=10, output_tokens=2),
                 )
+
             return gen()
 
         with patch(
             "lauren_ai._agents._runner.AgentRunnerBase.run_stream",
             new=fake_run_stream,
         ):
-            resp = await client.post(
-                "/api/banking/chat", content=body, headers=_signed(body)
-            )
+            resp = await client.post("/api/banking/chat", content=body, headers=_signed(body))
 
         events = _parse_sse(resp.content)
         tool_use_events = [e for e in events if e.get("event") == "tool_use"]

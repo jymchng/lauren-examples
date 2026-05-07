@@ -62,6 +62,7 @@ def _patch_run_stream_with(content: str):
         new=fake_run_stream,
     )
 
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -199,9 +200,7 @@ class TestSignatureSecurityE2E:
     async def test_valid_signature_streams_response(self, client):
         body = _banking_body(user_id="alice")
         with _patch_run_stream_with("Your balance is $5,000.00"):
-            resp = await client.post(
-                "/api/banking/chat", content=body, headers=_signed_headers(body)
-            )
+            resp = await client.post("/api/banking/chat", content=body, headers=_signed_headers(body))
 
         assert resp.status_code == 200
         assert "text/event-stream" in resp.headers["content-type"]
@@ -211,9 +210,7 @@ class TestSignatureSecurityE2E:
         """Json[T] should succeed even though the guard already consumed the body."""
         body = _banking_body(user_id="bob")
         with _patch_run_stream_with("Bob's balance"):
-            resp = await client.post(
-                "/api/banking/chat", content=body, headers=_signed_headers(body)
-            )
+            resp = await client.post("/api/banking/chat", content=body, headers=_signed_headers(body))
 
         assert resp.status_code == 200
 

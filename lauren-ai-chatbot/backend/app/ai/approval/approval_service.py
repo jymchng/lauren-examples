@@ -100,11 +100,7 @@ class ApprovalService:
         if not conversation_id:
             return 0
         async with self._lock:
-            stale = [
-                aid
-                for aid, meta in self._meta.items()
-                if meta.get("conversation_id") == conversation_id
-            ]
+            stale = [aid for aid, meta in self._meta.items() if meta.get("conversation_id") == conversation_id]
             cancelled = 0
             for aid in stale:
                 fut = self._pending.pop(aid, None)
