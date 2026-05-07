@@ -51,8 +51,13 @@ function EventRow({ entry }: { entry: ActivityEntry }) {
   const { event } = entry;
 
   if (event.type === "tool_started") {
-    // Handoff tool calls are represented by the richer agent_handoff event
-    if (String(event.tool_name) === "handoff_to") return null;
+    const name = String(event.tool_name);
+    // Suppress noise:
+    //   - handoff_to    → already shown via the richer agent_handoff event
+    //   - check_authentication_tool → runs on every authenticated turn; would
+    //     dominate the feed with 2 entries per turn (start + complete) for
+    //     no useful signal.
+    if (name === "handoff_to" || name === "check_authentication_tool") return null;
     return (
       <div className="flex items-center gap-2 py-1">
         <Wrench className="h-3 w-3 text-blue-500 flex-shrink-0" />
@@ -68,7 +73,8 @@ function EventRow({ entry }: { entry: ActivityEntry }) {
   }
 
   if (event.type === "tool_complete") {
-    if (String(event.tool_name) === "handoff_to") return null;
+    const name = String(event.tool_name);
+    if (name === "handoff_to" || name === "check_authentication_tool") return null;
     const success = Boolean(event.success);
     const durationMs = Number(event.duration_ms);
     return (

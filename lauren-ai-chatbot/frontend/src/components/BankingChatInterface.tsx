@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { MessageBubble, type Message } from "@/components/MessageBubble";
 import { StreamingMessage } from "@/components/StreamingMessage";
 import { ToolUseBubble } from "@/components/ToolUseBubble";
+import { ErrorMessage } from "@/components/ErrorMessage";
 import { generateId } from "@/lib/uuid";
 
 export type { Message };
@@ -165,9 +166,15 @@ export function BankingChatInterface({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             messages: localMessages
-              // system = handoff dividers, tool = tool-use record bubbles —
-              // both are local UI artifacts and must not be sent to the LLM.
-              .filter((m) => m.role !== "system" && m.role !== "tool")
+              // system / tool / error are local UI artifacts (handoff dividers,
+              // tool-use record bubbles, error bubbles) and must not be sent
+              // to the LLM.
+              .filter(
+                (m) =>
+                  m.role !== "system" &&
+                  m.role !== "tool" &&
+                  m.role !== "error",
+              )
               .map(({ role, content }) => ({ role, content })),
             user_id: userId ?? "",
             conversation_id: conversationId,
@@ -262,7 +269,7 @@ export function BankingChatInterface({
         setError(errMsg);
         localMessages = [
           ...localMessages,
-          { id: generateId(), role: "assistant", content: `⚠️ Error: ${errMsg}` },
+          { id: generateId(), role: "error", content: errMsg },
         ];
         onMessagesChange(localMessages);
       } finally {
@@ -308,6 +315,8 @@ export function BankingChatInterface({
         {messages.map((message) =>
           message.role === "tool" ? (
             <ToolUseBubble key={message.id} label={message.content} />
+          ) : message.role === "error" ? (
+            <ErrorMessage key={message.id} message={message.content} />
           ) : (
             <MessageBubble key={message.id} message={message} />
           )
