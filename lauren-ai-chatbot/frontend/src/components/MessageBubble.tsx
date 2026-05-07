@@ -130,7 +130,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
           message.content
         ) : (
           <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]} components={mdComponents}>
-            {normalizeMarkdown(message.content)}
+            {message.content}
           </ReactMarkdown>
         )}
       </div>
@@ -144,53 +144,10 @@ export function MessageBubble({ message }: MessageBubbleProps) {
   );
 }
 
-/**
- * Inject paragraph breaks at common dense-text boundaries the LLM
- * sometimes emits without whitespace (esp. smaller models on streaming).
- * Conservative — only acts on patterns that are unambiguously prose
- * breaks, never on legitimate CamelCase identifiers (``SecureBank``),
- * URLs, or markdown structures like bold spans.
- */
-function normalizeMarkdown(text: string): string {
-  return (
-    text
-      // Sentence boundary: ``foo.Bar`` / ``foo!Bar`` / ``foo?Bar`` →
-      // paragraph break.  Requires ≥2 lower-case letters before the
-      // punct to avoid splitting abbreviations like ``A.B.``.
-      .replace(/([a-z]{2}[.!?])([A-Z])/g, "$1\n\n$2")
-      // Sentence boundary where the byte before ``.!?`` is a digit
-      // (``$100.00.Would``).  Require ``[A-Z][a-z]`` after so
-      // identifiers like ``ACC-001`` (capital + digits, no lowercase)
-      // stay untouched.
-      .replace(/(\d[.!?])([A-Z][a-z])/g, "$1\n\n$2")
-      // Decimal-number end → next sentence with no separator
-      // (``$4,900.00Your``).  Matches a literal ``.`` + digits + capital
-      // + lowercase so plain digit-letter pairs (``mp3Songs``) don't
-      // trigger.
-      .replace(/(\.\d+)([A-Z][a-z]{2,})/g, "$1\n\n$2")
-      // Emoji directly followed by a capitalised word (``✅Transaction``).
-      // Uses the Unicode ``Extended_Pictographic`` property so the
-      // pattern matches every emoji including symbols like ✅, ❌, ⭐.
-      .replace(/(\p{Extended_Pictographic})([A-Z][a-z]{2,})/gu, "$1\n\n$2")
-      // Mid-text list-item dash: any non-space char immediately followed
-      // by ``- <Capital>`` (e.g. ``Details:- Transaction``,
-      // ``$100.00- Amount``, ``Smith- New``).  The dash MUST have a
-      // space and a capital letter after it, so embedded hyphens like
-      // ``Anne-Marie``, ``well-known``, or ``ACC-001`` stay intact.
-      .replace(/(\S)(-\s[A-Z])/g, "$1\n$2")
-      // Closing ``**`` immediately followed by a numbered-list item
-      // (``**Header**1. item``) → break before the list.
-      .replace(/(\*\*)(\d+\.\s)/g, "$1\n\n$2")
-      // Closing parenthesis followed by a capital letter (``(Sent)Your``)
-      // → paragraph break.
-      .replace(/(\))([A-Z])/g, "$1\n\n$2")
-  );
-}
-
 export function MarkdownContent({ content }: { content: string }) {
   return (
     <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]} components={mdComponents}>
-      {normalizeMarkdown(content)}
+      {content}
     </ReactMarkdown>
   );
 }
