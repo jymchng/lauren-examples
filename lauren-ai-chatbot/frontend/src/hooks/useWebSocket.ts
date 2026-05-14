@@ -45,6 +45,7 @@ export interface WsEvent {
     | "transfer_approval_request"
     | "agent_handoff"
     | "guardrail_triggered";
+  passed?: boolean;
   [key: string]: unknown;
 }
 

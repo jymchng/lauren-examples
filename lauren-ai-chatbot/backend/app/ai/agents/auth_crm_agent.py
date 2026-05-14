@@ -96,16 +96,18 @@ _AUTH_CRM_REDIRECT = (
     max_turns=6,
     conversation_store=InMemoryConversationStore(),
 )
-# @use_guardrails(
-#     output=[LLMScopeGuard(
-#         llm_config=_llm_config,
-#         agent_role=_AUTH_CRM_ROLE,
-#         allowed_scope=_AUTH_CRM_SCOPE,
-#         redirect_message=_AUTH_CRM_REDIRECT,
-#         guardrail_name="AuthCRMScopeGuard",
-#         agent_name="Auth CRM Agent",
-#     )],
-# )
+@use_guardrails(
+    output=[
+        LLMScopeGuard(
+            llm_config=_llm_config,
+            agent_role=_AUTH_CRM_ROLE,
+            allowed_scope=_AUTH_CRM_SCOPE,
+            redirect_message=_AUTH_CRM_REDIRECT,
+            guardrail_name="AuthCRMScopeGuard",
+            agent_name="Auth CRM Agent",
+        )
+    ],
+)
 @use_tools(GetBalanceTool, GetTransactionHistoryTool, CheckAuthenticationTool, HandoffTo)
 class AuthenticatedCRMAgent:
     """Authenticated customer-facing banking assistant."""

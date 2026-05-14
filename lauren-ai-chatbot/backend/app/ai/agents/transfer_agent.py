@@ -133,16 +133,18 @@ _TRANSFER_REDIRECT = (
     max_turns=10,
     conversation_store=InMemoryConversationStore(),
 )
-# @use_guardrails(
-#     output=[LLMScopeGuard(
-#         llm_config=_llm_config,
-#         agent_role=_TRANSFER_ROLE,
-#         allowed_scope=_TRANSFER_SCOPE,
-#         redirect_message=_TRANSFER_REDIRECT,
-#         guardrail_name="TransferScopeGuard",
-#         agent_name="Transfer Agent",
-#     )],
-# )
+@use_guardrails(
+    output=[
+        LLMScopeGuard(
+            llm_config=_llm_config,
+            agent_role=_TRANSFER_ROLE,
+            allowed_scope=_TRANSFER_SCOPE,
+            redirect_message=_TRANSFER_REDIRECT,
+            guardrail_name="TransferScopeGuard",
+            agent_name="Transfer Agent",
+        )
+    ],
+)
 @use_tools(ApprovalTool, TransferFundsTool, CheckAuthenticationTool, HandoffTo)
 class BankTransferAgent:
     """Transfer execution agent (reached via handoff from AuthenticatedCRMAgent)."""

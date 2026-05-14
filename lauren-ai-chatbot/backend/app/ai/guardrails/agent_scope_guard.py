@@ -51,17 +51,35 @@ class AgentScopeGuard:
         for phrase in self._phrases:
             if phrase in lower:
                 violation = f"Off-topic phrase detected: '{phrase}'"
-                await _default_bus.emit(
-                    GuardrailTriggered(
-                        guardrail_name=self._guardrail_name,
-                        agent_name=self._agent_name,
-                        violation=violation,
+                try:
+                    await _default_bus.emit(
+                        GuardrailTriggered(
+                            guardrail_name=self._guardrail_name,
+                            agent_name=self._agent_name,
+                            violation=violation,
+                        )
                     )
-                )
+                except Exception:  # noqa: BLE001
+                    pass  # signal emission is best-effort; never crash the guardrail
                 return GuardrailDecision(
                     action="modify",
                     modified_content=self._redirect,
                     violation=violation,
                     guardrail_name=self._guardrail_name,
                 )
+        # No phrase matched — emit a "passed" signal so the activity feed shows
+        # every guardrail evaluation, not just interventions.
+        # Skip when _phrases is empty (no actual evaluation performed).
+        if self._phrases:
+            try:
+                await _default_bus.emit(
+                    GuardrailTriggered(
+                        guardrail_name=self._guardrail_name,
+                        agent_name=self._agent_name,
+                        violation="",
+                        passed=True,
+                    )
+                )
+            except Exception:  # noqa: BLE001
+                pass
         return GuardrailDecision(action="pass", guardrail_name=self._guardrail_name)

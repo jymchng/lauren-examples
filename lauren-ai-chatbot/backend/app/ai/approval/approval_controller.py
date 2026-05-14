@@ -11,7 +11,7 @@ line of defence against cross-user forgery.
 
 from __future__ import annotations
 
-from pydantic import BaseModel
+import msgspec
 
 from lauren import Json, Request, controller, post, use_guards
 from lauren.exceptions import RouteNotFoundError
@@ -20,7 +20,7 @@ from app.ai.approval.approval_service import ApprovalService
 from app.crypto.signature_guard import SignatureGuard
 
 
-class ApprovalBody(BaseModel):
+class ApprovalBody(msgspec.Struct):
     """Request body for POST /api/banking/approval."""
 
     approval_id: str

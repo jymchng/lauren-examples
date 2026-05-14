@@ -18,6 +18,7 @@ from app.middlewares.cors_middleware import CorsMiddleware
 from app.middlewares.logging_middleware import LoggingMiddleware
 from lauren import LaurenFactory
 from lauren.logging import default_logger
+from lauren.serialization import MsgspecEncoder
 from lauren_ai import (  # noqa: E402
     AgentRunComplete,
     InMemoryTraceExporter,
@@ -84,6 +85,7 @@ app = LaurenFactory.create(
     global_middlewares=[CorsMiddleware, LoggingMiddleware],
     global_interceptors=[TimingInterceptor],
     logger=default_logger(),
+    json_encoder=MsgspecEncoder(),
 )
 
 if __name__ == "__main__":

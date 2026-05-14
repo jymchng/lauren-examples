@@ -112,6 +112,21 @@ class LLMScopeGuard:
                     guardrail_name=self._guardrail_name,
                     agent_name=self._agent_name,
                     violation=decision.violation or "LLM judge: out-of-scope response",
+                    passed=False,
                 )
             )
+        else:
+            # Guard evaluated but response was clean — still emit so the
+            # activity feed shows every evaluation, not only interventions.
+            try:
+                await _default_bus.emit(
+                    GuardrailTriggered(
+                        guardrail_name=self._guardrail_name,
+                        agent_name=self._agent_name,
+                        violation="",
+                        passed=True,
+                    )
+                )
+            except Exception:  # noqa: BLE001
+                pass
         return decision

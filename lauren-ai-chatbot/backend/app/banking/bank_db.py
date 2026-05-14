@@ -11,15 +11,15 @@ import asyncio
 import threading
 import uuid
 from collections.abc import Callable, Awaitable
-from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
+
+import msgspec
 
 from lauren import injectable, Scope
 
 
-@dataclass
-class BankAccount:
+class BankAccount(msgspec.Struct):
     user_id: str
     name: str
     account_id: str
@@ -27,8 +27,7 @@ class BankAccount:
     avatar_color: str = "#6366f1"
 
 
-@dataclass
-class Transaction:
+class Transaction(msgspec.Struct):
     tx_id: str
     from_user: str
     to_user: str

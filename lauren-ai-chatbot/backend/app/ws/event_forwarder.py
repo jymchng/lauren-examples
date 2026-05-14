@@ -35,6 +35,22 @@ class EventForwarder:
         self._connections: dict[str, list[WebSocket]] = {}
         self._lock = asyncio.Lock()
 
+        # Clear any stale handlers that a previous EventForwarder instance may
+        # have registered on the same module-level signal_bus singleton.  This
+        # prevents N-times duplication when LaurenFactory.create() is called
+        # multiple times in the same Python process (hot-reload in development,
+        # multiple test-module fixtures running in the same pytest session).
+        # EventForwarder is the only subscriber for these event types so
+        # clearing is safe.  In normal single-run production this is a no-op.
+        for _et in (
+            ModelCallComplete,
+            ToolCallStarted,
+            ToolCallComplete,
+            AgentRunComplete,
+            GuardrailTriggered,
+        ):
+            signal_bus.clear(_et)
+
         # Register agent lifecycle signal handlers once at construction time
         signal_bus.on(ModelCallComplete)(self._on_model_complete)
         signal_bus.on(ToolCallStarted)(self._on_tool_started)
@@ -162,6 +178,7 @@ class EventForwarder:
                 "guardrail_name": event.guardrail_name,
                 "agent_name": event.agent_name,
                 "violation": event.violation,
+                "passed": event.passed,
             },
         )
 

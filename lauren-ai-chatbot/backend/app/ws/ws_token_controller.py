@@ -8,7 +8,7 @@ the WebSocket gateway at /ws/banking.
 
 from __future__ import annotations
 
-from pydantic import BaseModel
+import msgspec
 
 from lauren import Json, controller, post, use_guards
 
@@ -16,7 +16,7 @@ from app.crypto.signature_guard import SignatureGuard
 from app.ws.token_service import WsTokenService
 
 
-class WsTokenRequest(BaseModel):
+class WsTokenRequest(msgspec.Struct):
     user_id: str
 
 

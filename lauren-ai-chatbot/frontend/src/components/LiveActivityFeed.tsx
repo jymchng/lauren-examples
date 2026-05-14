@@ -140,15 +140,28 @@ function EventRow({ entry }: { entry: ActivityEntry }) {
   }
 
   if (event.type === "guardrail_triggered") {
+    const passed = Boolean(event.passed);
     const agentName = event.agent_name ? String(event.agent_name) : null;
     return (
       <div className="flex items-center gap-2 py-1">
-        <Shield className="h-3 w-3 text-orange-500 flex-shrink-0" />
+        <Shield
+          className={cn(
+            "h-3 w-3 flex-shrink-0",
+            passed ? "text-emerald-500" : "text-orange-500"
+          )}
+        />
         <span className="text-[11px] text-muted-foreground">
-          <span className="font-medium text-orange-600 dark:text-orange-400">
+          <span
+            className={cn(
+              "font-medium",
+              passed
+                ? "text-emerald-600 dark:text-emerald-400"
+                : "text-orange-600 dark:text-orange-400"
+            )}
+          >
             {String(event.guardrail_name)}
           </span>{" "}
-          blocked off-topic response
+          {passed ? "checked — OK" : "blocked off-topic response"}
           {agentName && (
             <>
               {" "}

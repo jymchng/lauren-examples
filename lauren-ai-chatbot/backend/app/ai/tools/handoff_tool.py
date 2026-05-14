@@ -119,18 +119,25 @@ class HandoffTo:
         ) or ""
 
         if conversation_id:
+            # Check BEFORE updating so we can suppress duplicate WS events.
+            # If the active agent is already `to_agent` the LLM called HandoffTo
+            # a second time for the same destination — skip the duplicate event.
+            already_at_destination = self._store.get(conversation_id, default="") == to_agent
             self._store.set(conversation_id, to_agent)
             self._store.set_pending_summary(conversation_id, summary)
+        else:
+            already_at_destination = False
 
-        await self._forwarder.send_to_user(
-            user_id,
-            {
-                "type": "agent_handoff",
-                "from_agent": from_name,
-                "to_agent": to_agent,
-                "summary": summary,
-            },
-        )
+        if not already_at_destination:
+            await self._forwarder.send_to_user(
+                user_id,
+                {
+                    "type": "agent_handoff",
+                    "from_agent": from_name,
+                    "to_agent": to_agent,
+                    "summary": summary,
+                },
+            )
 
         logger.debug(
             "HandoffTo.run: conv_id=%s from=%s to=%s summary=%r",

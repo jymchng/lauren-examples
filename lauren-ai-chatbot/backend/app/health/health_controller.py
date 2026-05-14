@@ -1,11 +1,11 @@
 """HealthController — a simple liveness probe endpoint."""
 
-from pydantic import BaseModel
+import msgspec
 
 from lauren import controller, get
 
 
-class HealthResponse(BaseModel):
+class HealthResponse(msgspec.Struct):
     status: str
     version: str = "1.0.0"
     framework: str = "lauren"

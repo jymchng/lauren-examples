@@ -13,7 +13,7 @@ from lauren_ai._memory._stores import InMemoryConversationStore
 from lauren_ai._transport import Completion, TokenUsage
 
 
-@agent(model=None, system="You are a helpful assistant.", max_turns=3)
+@agent(model="mock-model", system="You are a helpful assistant.", max_turns=3)
 class SimpleAgent:
     """Minimal agent used only for memory-persistence tests."""
 
@@ -41,11 +41,7 @@ class TestConversationMemoryPersistence:
         from lauren_ai._agents._runner import AgentRunnerBase as AgentRunner
 
         SimpleAgent.__lauren_ai_agent__.conversation_store = store
-        runner = AgentRunner(
-            transport=mock,
-            tools={},
-            config=cfg,
-        )
+        runner = AgentRunner(transport=mock)
 
         agent_instance = SimpleAgent()
         conv_id = "test-conv-001"
@@ -91,11 +87,7 @@ class TestConversationMemoryPersistence:
         from lauren_ai._agents._runner import AgentRunnerBase as AgentRunner
 
         SimpleAgent.__lauren_ai_agent__.conversation_store = store
-        runner = AgentRunner(
-            transport=mock,
-            tools={},
-            config=cfg,
-        )
+        runner = AgentRunner(transport=mock)
 
         mock.queue_response(_completion("OK", n=1))
         await runner.run(SimpleAgent(), "Hello")  # no conversation_id
@@ -111,11 +103,7 @@ class TestConversationMemoryPersistence:
         from lauren_ai._agents._runner import AgentRunnerBase as AgentRunner
 
         SimpleAgent.__lauren_ai_agent__.conversation_store = store
-        runner = AgentRunner(
-            transport=mock,
-            tools={},
-            config=cfg,
-        )
+        runner = AgentRunner(transport=mock)
         inst = SimpleAgent()
 
         mock.queue_response(_completion("Alice reply", n=1))
@@ -139,11 +127,7 @@ class TestConversationMemoryPersistence:
         from lauren_ai._agents._runner import AgentRunnerBase as AgentRunner
 
         SimpleAgent.__lauren_ai_agent__.conversation_store = store
-        runner = AgentRunner(
-            transport=mock,
-            tools={},
-            config=cfg,
-        )
+        runner = AgentRunner(transport=mock)
         inst = SimpleAgent()
         conv_id = "growing-conv"
 

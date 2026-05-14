@@ -15,9 +15,8 @@ Example response header::
 import time
 from typing import Any
 
-from pydantic import BaseModel
-
 from lauren import interceptor
+from lauren.serialization import get_active_encoder
 from lauren.types import CallHandler, ExecutionContext, Response
 
 
@@ -31,8 +30,8 @@ class TimingInterceptor:
 
         if isinstance(result, Response):
             return result.with_header("x-response-time", header_value)
-        if isinstance(result, BaseModel):
-            # Auto-serialize Pydantic models so the header can be attached.
-            # Lauren will use this Response directly without double-serializing.
-            return Response.json(result.model_dump()).with_header("x-response-time", header_value)
+        # For msgspec.Struct, dataclass, or any other serializable value:
+        # convert to Response using the active encoder so the header can be attached.
+        if result is not None and not isinstance(result, (dict, list, str, int, float, bool)):
+            return Response.json(result, encoder=get_active_encoder()).with_header("x-response-time", header_value)
         return result

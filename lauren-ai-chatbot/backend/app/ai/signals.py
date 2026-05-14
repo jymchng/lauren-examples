@@ -6,17 +6,23 @@ and ``ai_module.py``, both of which need access to the same bus instance.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import msgspec
 
 from lauren_ai import SignalBus
 
 signal_bus: SignalBus = SignalBus()
 
 
-@dataclass
-class GuardrailTriggered:
-    """Fired by ``AgentScopeGuard`` when an off-topic response is intercepted."""
+class GuardrailTriggered(msgspec.Struct):
+    """Fired by guardrails after every response evaluation.
+
+    ``passed=True`` when the response was clean (guardrail did not fire).
+    ``passed=False`` when the guardrail fired and replaced the response.
+    Both cases appear in the live activity feed so operators can monitor
+    guardrail coverage, not just interventions.
+    """
 
     guardrail_name: str
     agent_name: str
     violation: str
+    passed: bool = False
