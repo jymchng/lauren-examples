@@ -10,7 +10,7 @@ Each example is a self-contained, full-stack project demonstrating real patterns
 
 | Example | Description | Stack |
 |---------|-------------|-------|
-| [**lauren-ai-chatbot**](./lauren-ai-chatbot/) | Full-stack AI chatbot with SSE streaming, HMAC-signed requests, agentic tool use, guardrails, cost tracking, and observability | Python · Lauren · Lauren AI · Next.js · OpenRouter |
+| [**lauren-ai-chatbot**](./lauren-ai-chatbot/) | Full-stack AI chatbot with public and authenticated agent routing, SSE streaming, HMAC-signed requests, `msgspec` payloads, guardrails, live WebSocket telemetry, and HITL transfer approval | Python · Lauren · Lauren AI · Next.js · OpenRouter · msgspec |
 
 ---
 
@@ -24,7 +24,7 @@ Each example is a self-contained, full-stack project demonstrating real patterns
 
 ## Running an Example
 
-Each example has its own `README.md` with full setup instructions. The general pattern is:
+Each example has its own `README.md` with full setup instructions. Some examples also ship local agent context packs in `backend/skills/` and deployment helpers such as `modal_deploy.py`. The general pattern is:
 
 ```bash
 # Backend

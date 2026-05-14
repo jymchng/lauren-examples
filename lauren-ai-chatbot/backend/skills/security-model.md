@@ -7,6 +7,7 @@
 - Identity trust chain (guard → controller → runner → tool)
 - Cross-user approval forgery protection
 - WebSocket token authentication
+- Public chat and public WebSocket sessions
 
 ## HMAC-SHA256 request signing
 
@@ -87,6 +88,11 @@ class AuthenticatedUserGuard:
 async def stream(self, body: Json[ChatRequest], exec_ctx: ExecutionContext) -> EventStream: ...
 ```
 
+That split is intentional:
+
+- `POST /api/banking/chat` and `POST /api/banking/ws-token` require `AuthenticatedUserGuard`
+- `POST /api/banking/chat/public` and `POST /api/banking/ws-token/public` do not
+
 ## Identity trust chain
 
 ```
@@ -147,3 +153,11 @@ the short TTL is not a practical constraint under normal usage.
 Connecting without a valid token causes the gateway to close with code `4401`
 before any messages are accepted — no events are ever forwarded to an
 unauthenticated connection.
+
+## Public chat and public WebSocket sessions
+
+Unauthenticated visitors use a separate path:
+
+- `POST /api/banking/chat/public` routes only to `UnauthenticatedCRMAgent`
+- `POST /api/banking/ws-token/public` issues a short-lived token for the sentinel user `__public__`
+- `BankingChatController.stream_public()` sets `current_user_id` to `__public__` before returning `EventStream(...)`, so public agent events still reach the live activity feed without impersonating a real account

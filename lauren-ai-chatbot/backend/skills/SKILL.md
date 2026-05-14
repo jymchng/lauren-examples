@@ -1,11 +1,11 @@
 ---
 name: building-securebank-chatbot
-description: Builds a production-grade multi-agent banking chatbot backend using Lauren (web framework) and Lauren AI (agent orchestration). Covers four-agent routing with HandoffTo, human-in-the-loop transfer approval via asyncio.Future, real-time WebSocket events via SignalBus, and HMAC-SHA256 request signing. Use when building AI chatbot backends with agentic routing, streaming SSE responses, WebSocket event feeds, or security-enforced identity.
+description: Builds a production-grade multi-agent banking chatbot backend using Lauren and Lauren AI. Covers public and authenticated agent routing with HandoffTo, human-in-the-loop transfer approval via asyncio.Future, output guardrails, msgspec request schemas, and real-time WebSocket events via SignalBus. Use when building AI chatbot backends with streaming SSE responses, WebSocket event feeds, or security-enforced identity.
 ---
 
 # SecureBank AI Chatbot — Backend Skill
 
-Production-grade banking chatbot backend. Four independent agents route conversations via `HandoffTo[...]`, a human-in-the-loop approval gate blocks fund transfers until the browser confirms, and every agent lifecycle event is fanned out over WebSocket in real time.
+Production-grade banking chatbot backend. Four independent agents route conversations via `HandoffTo[...]`, a human-in-the-loop approval gate blocks fund transfers until the browser confirms, output guardrails emit live telemetry, and every agent lifecycle event is fanned out over WebSocket in real time.
 
 ## Project layout
 
@@ -17,9 +17,10 @@ backend/
 │   ├── ai/
 │   │   ├── ai_module.py       # Four AgentModules wired together + BankingChatController
 │   │   ├── agents/            # @agent classes: unauth_crm, auth_crm, transfer, disputes
+│   │   ├── guardrails/        # LLMScopeGuard + AgentScopeGuard
 │   │   ├── tools/             # banking tools, HandoffTo, CheckAuth, ActiveAgentStore
 │   │   └── approval/          # ApprovalService + ApprovalTool (human-in-the-loop)
-│   ├── ws/                    # BankingWsGateway, EventForwarder, WsTokenController
+│   ├── ws/                    # BankingWsGateway, EventForwarder, WsTokenController, WsPublicTokenController
 │   └── crypto/                # SignatureGuard, CryptoService (HMAC-SHA256)
 ```
 
@@ -36,12 +37,21 @@ backend/
 
 ```python
 # main.py
-from lauren import Lauren
+from lauren import LaurenFactory
 from app.app_module import AppModule
+from app.interceptors.timing_interceptor import TimingInterceptor
 from app.middlewares.cors_middleware import CorsMiddleware
 from app.middlewares.logging_middleware import LoggingMiddleware
+from lauren.logging import default_logger
+from lauren.serialization import MsgspecEncoder
 
-app = Lauren(AppModule, global_middlewares=[CorsMiddleware, LoggingMiddleware])
+app = LaurenFactory.create(
+    AppModule,
+    global_middlewares=[CorsMiddleware, LoggingMiddleware],
+    global_interceptors=[TimingInterceptor],
+    logger=default_logger(),
+    json_encoder=MsgspecEncoder(),
+)
 ```
 
 ### Root module
@@ -129,6 +139,16 @@ class BankingChatController:
         return EventStream(generate(), keep_alive=15.0)
 ```
 
+`ChatRequest`, `Message`, and the small HTTP bodies such as `ApprovalBody` and
+`WsTokenRequest` are `msgspec.Struct` types, not Pydantic models.
+
+## Guardrails
+
+- `LLMScopeGuard` protects the authenticated CRM, transfer, and disputes agents.
+- `GuardrailTriggered` is emitted for both clean and blocked responses.
+- SSE can emit `guardrail_override` when a response is replaced.
+- WebSocket clients receive `guardrail_triggered` with `passed: true|false`.
+
 ## Observability
 
 ```python
@@ -150,3 +170,14 @@ async def _track_cost(event: ModelCallComplete) -> None:
 | `OPENROUTER_API_KEY` | LLM provider API key |
 | `LLM_MODEL` | Model slug (e.g. `openai/gpt-4o-mini`) |
 | `PAYLOAD_SECRET` | HMAC-SHA256 secret shared with the Next.js frontend proxy |
+
+## Public session support
+
+- `POST /api/banking/chat/public` streams unauthenticated chat through `UnauthenticatedCRMAgent`
+- `POST /api/banking/ws-token/public` issues a WebSocket token for the sentinel public user `__public__`
+- Public CRM can answer general product questions from the embedded public knowledge base
+
+## Deployment note
+
+`modal_deploy.py` installs `msgspec>=0.18` explicitly because the backend uses
+`msgspec.Struct` request models and `MsgspecEncoder()` at runtime.

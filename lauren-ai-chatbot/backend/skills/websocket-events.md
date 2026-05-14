@@ -6,6 +6,7 @@
 - WsTokenService — short-lived token issue/verify
 - EventForwarder — user_id → WebSocket fan-out + SignalBus handlers
 - ContextVar routing (current_user_id)
+- Public-session routing (`__public__`)
 - Event type reference
 
 ## Architecture overview
@@ -28,6 +29,8 @@ HTTP handler task (BankingChatController.stream)
 
 Balance-change events skip the ContextVar path and use `broadcast()` — they are
 relevant to every connected user, not just the one who initiated the transfer.
+Public chat also uses this pipeline: the controller sets `current_user_id` to
+the sentinel `__public__` before returning `EventStream(...)`.
 
 ## BankingWsGateway
 
@@ -143,4 +146,8 @@ are silently dropped.
 | `agent_handoff` | `HandoffTo` executes | `from_agent`, `to_agent`, `summary` |
 | `balance_changed` | Transfer executes | `from_user`, `to_user`, `amount`, `balances` (broadcast to ALL users) |
 | `transfer_approval_request` | `ApprovalTool` fires | `approval_id`, `from_user`, `to_user`, `amount_usd`, `description`, `created_at` |
-| `guardrail_triggered` | Output guardrail fires | `guardrail_name`, `agent_name`, `violation`, `passed` |
+| `guardrail_triggered` | Output guardrail evaluates a response | `guardrail_name`, `agent_name`, `violation`, `passed` |
+
+`passed=True` means the response was evaluated and allowed through unchanged.
+`passed=False` means the guardrail fired and replaced the response. The live
+activity feed shows both so operators can see coverage, not just blocks.

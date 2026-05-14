@@ -47,6 +47,10 @@ _AuthCRMModule = AgentModule.for_root(
 
 The controller detects the store change and loops to the new agent on the next iteration.
 
+If the active agent is already `to_agent`, `HandoffTo` still refreshes the store
+and pending summary but suppresses the duplicate `agent_handoff` WebSocket event.
+This keeps the activity feed free of repeated no-op handoff rows.
+
 ## ActiveAgentStore
 
 ```python

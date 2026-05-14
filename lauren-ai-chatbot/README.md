@@ -1,6 +1,6 @@
 # SecureBank AI Chatbot
 
-A production-grade AI banking demo built on **[Lauren](https://github.com/lauren-framework/lauren)** and **[Lauren AI](https://github.com/lauren-framework/lauren-ai)**. It is intentionally non-trivial: a multi-agent system with real routing, real security, real-time WebSocket events, and a human-in-the-loop transfer approval flow — all wired together through the framework's module system.
+A production-grade AI banking demo built on **[Lauren](https://github.com/lauren-framework/lauren)** and **[Lauren AI](https://github.com/lauren-framework/lauren-ai)**. It is intentionally non-trivial: a multi-agent system with real routing, real security, `msgspec`-backed request models, real-time WebSocket events, output guardrails, and a human-in-the-loop transfer approval flow, all wired together through the framework's module system.
 
 ![Lauren AI Chatbot](https://raw.githubusercontent.com/lauren-framework/lauren-examples/refs/heads/main/lauren-ai-chatbot/assets/lauren-ai-chatbot.PNG)
 
@@ -28,7 +28,7 @@ Public CRM                   |                          Auth CRM
                                                    Disputes ◄─► Transfer
 ```
 
-Each agent runs with its own isolated `InMemoryConversationStore` so it only sees the turns it handled directly. Context is passed across handoffs via a summary string, not the full history.
+Each agent runs with its own isolated `InMemoryConversationStore` so it only sees the turns it handled directly. Context is passed across handoffs via a summary string, not the full history. Public conversations start in the public CRM agent and can move into the authenticated graph only through explicit auth-aware handoff tools.
 
 ### Human-in-the-Loop Transfer Approval
 
@@ -36,7 +36,7 @@ Before any transfer executes, the Transfer Agent calls `ApprovalTool`, which:
 
 1. Registers a pending `asyncio.Future` in `ApprovalService`.
 2. Pushes a `transfer_approval_request` WebSocket event to the user's browser.
-3. Blocks the agent turn (`asyncio.wait_for` with a 120-second timeout) while the browser shows an approval dialog.
+3. Blocks the agent turn (`asyncio.wait_for` with a 30-second timeout) while the browser shows an approval dialog.
 4. Writes a one-shot signed token into agent metadata on approval; `TransferFundsTool` validates and consumes it before executing.
 
 Rejection or timeout returns `{"approved": false}` — the transfer never runs.
@@ -49,10 +49,11 @@ Every agent event is forwarded to the browser over an authenticated WebSocket (`
 - `agent_handoff` — which agent handed off to which (e.g. "Auth CRM → Transfer")
 - `token_usage` — input/output tokens and cost per LLM call
 - `run_complete` — total cost and turn count per agent run
+- `guardrail_triggered` — whether a response passed guardrail review or was replaced
 - `balance_changed` — broadcast to all users when a transfer executes
 - `transfer_approval_request` — triggers the approval dialog in the browser
 
-Connections are authenticated via a short-lived token (120-second TTL) issued by `WsTokenController`. The `EventForwarder` singleton maps `user_id → []WebSocket` and fans out events to every connection the user has open.
+Authenticated connections use a short-lived token (120-second TTL) issued by `WsTokenController`. Public sessions can subscribe too via `POST /api/banking/ws-token/public`, which binds the socket to the sentinel user `__public__`. The `EventForwarder` singleton maps `user_id → []WebSocket`, fans out per-user events, broadcasts balance changes globally, and emits guardrail telemetry for the live feed.
 
 ### Security Model
 
@@ -76,10 +77,11 @@ All security is enforced at the framework boundary, before any agent or tool run
 | `@controller`, `@post`, `@get` routing | `BankingChatController`, `BankingController`, `ApprovalController`, `WsTokenController` |
 | `@use_guards`, `CanActivate` | `SignatureGuard`, `AuthenticatedUserGuard` on chat and approval endpoints |
 | `EventStream` + `ServerSentEvent` | Streaming agent responses in `BankingChatController` |
-| `Json[T]` extractor with Pydantic validation | `ChatRequest`, `ApprovalBody` |
+| `Json[T]` extractor with `msgspec.Struct` bodies | `ChatRequest`, `ApprovalBody`, `WsTokenRequest` |
 | `@ws_controller`, `@on_connect`, `@on_disconnect` | `BankingWsGateway` — real-time event delivery |
 | Global middleware pipeline | `CorsMiddleware`, `LoggingMiddleware` via `global_middlewares=` |
 | Global interceptors | `TimingInterceptor` → `X-Response-Time` header on every response |
+| App-wide JSON encoder | `MsgspecEncoder()` configured in `main.py` for HTTP, SSE, and WebSocket JSON |
 | `ExecutionContext` injection | Security anchor flowing from guard through agent runner to every tool |
 
 ### Lauren AI Features Used
@@ -88,10 +90,11 @@ All security is enforced at the framework boundary, before any agent or tool run
 |---|---|
 | `@agent` + `@use_tools` | All four agent classes |
 | `AgentModule.for_root()` — per-agent module with isolated conversation store | `ai_module.py` |
-| Distinct runner DI tokens (`AgentRunnerBase` subclasses) | `banking_delegation.py` — four independent singletons |
+| Synthesized typed runners (`AgentRunner[AgentX]`) | Injected directly into `BankingChatController` from each `AgentModule.for_root(...)` |
 | `HandoffTo[AgentA, AgentB]` — typed, enum-validated routing | `ai_module.py` subscripts |
 | `InMemoryConversationStore` — per-agent conversation isolation | One store per agent in `ai_module.py` |
 | `LLMModule.for_root()` + `LLMConfig` — provider abstraction | `ai_module.py` |
+| Output guardrails | `LLMScopeGuard`, `AgentScopeGuard`, `GuardrailTriggered` signal |
 | Agent lifecycle hooks — `on_start`, `on_turn_complete`, `on_tool_result`, `on_finish` | All four agent classes |
 | `ToolContext.execution_context` — security context forwarded to tools | `banking_tools.py`, `approval_tool.py`, `check_auth_tool.py` |
 | `SignalBus` + `ModelCallComplete` / `AgentRunComplete` events | `signals.py`, `main.py`, `ai_module.py` |
@@ -159,13 +162,13 @@ AppModule
     │   ├── CheckAuthModule  (CheckAuthenticationTool — shared singleton)
     │   ├── WsModule
     │   └── ActiveAgentModule  (ActiveAgentStore)
-    ├── _AuthCRMModule     (AuthenticatedCRMAgent, AuthCRMRunner)
+    ├── _AuthCRMModule     (AuthenticatedCRMAgent)
     │   ├── CheckAuthModule, BankingModule, WsModule, ActiveAgentModule
     │   └── HandoffTo[BankTransferAgent, DisputesAgent, UnauthenticatedCRMAgent]
-    ├── _TransferModule    (BankTransferAgent, TransferAgentRunner)
+    ├── _TransferModule    (BankTransferAgent)
     │   ├── CheckAuthModule, BankingModule, ApprovalModule, WsModule, ActiveAgentModule
     │   └── HandoffTo[AuthenticatedCRMAgent, DisputesAgent, UnauthenticatedCRMAgent]
-    ├── _DisputesModule    (DisputesAgent, DisputesAgentRunner)
+    ├── _DisputesModule    (DisputesAgent)
     │   ├── CheckAuthModule, BankingModule, WsModule, ActiveAgentModule
     │   └── HandoffTo[BankTransferAgent, AuthenticatedCRMAgent]
     └── BankingChatController  (routes turns, loops on handoff)
@@ -206,14 +209,17 @@ lauren-ai-chatbot/
 │       │   ├── ai_module.py             # Four AgentModules, CostTracker, BankingChatController
 │       │   ├── agent_names.py           # Canonical agent name constants
 │       │   ├── chat_schemas.py          # ChatRequest, Message Pydantic models
-│       │   ├── signals.py               # Shared SignalBus singleton
+│       │   ├── signals.py               # Shared SignalBus singleton + GuardrailTriggered
 │       │   ├── chat_banking_controller.py  # POST /api/banking/chat — SSE streaming + routing
+│       │   ├── knowledge_sources.py     # RAG source registration for the public CRM agent
 │       │   ├── agents/
 │       │   │   ├── unauth_crm_agent.py  # Public CRM: pre-login questions + auth handoff
 │       │   │   ├── auth_crm_agent.py    # Authenticated CRM: balances, history, routing
 │       │   │   ├── transfer_agent.py    # Transfer specialist: approval gate + fund transfer
 │       │   │   ├── disputes_agent.py    # Disputes specialist: fraud, chargebacks
-│       │   │   └── banking_delegation.py  # Four AgentRunnerBase DI tokens
+│       │   ├── guardrails/
+│       │   │   ├── llm_scope_guard.py   # LLM-reviewed output scope enforcement
+│       │   │   └── agent_scope_guard.py # Phrase-based agent scope enforcement
 │       │   ├── tools/
 │       │   │   ├── banking_tools.py     # GetBalanceTool, GetTransactionHistoryTool, TransferFundsTool
 │       │   │   ├── check_auth_tool.py   # CheckAuthenticationTool
@@ -238,6 +244,8 @@ lauren-ai-chatbot/
 │       │   ├── ws_token_controller.py   # POST /api/banking/ws-token (authenticated)
 │       │   ├── ws_public_token_controller.py  # POST /api/banking/ws-token/public
 │       │   └── ws_module.py
+│       ├── knowledge/
+│       │   └── *.md                     # Public CRM RAG content copied into Modal image
 │       ├── crypto/
 │       │   ├── crypto_service.py        # HMAC-SHA256 sign / verify
 │       │   ├── signature_guard.py       # Guard: verifies X-Signature + pins user_id
@@ -319,6 +327,24 @@ Open [http://localhost:3000](http://localhost:3000).
 
 Select **Alice**, **Bob**, or **Charlie** from the user selector to log in. The demo accounts start with preset balances and transaction histories so you can try transfers and disputes immediately.
 
+### Optional: AI Agent Context Packs
+
+The backend ships a local skill pack for coding agents in `backend/skills/`:
+
+```bash
+cd backend
+npx skills add . --local
+```
+
+It includes focused guides for multi-agent routing, human approval flows, the
+security model, and WebSocket event routing in this example.
+
+### Optional: Deploy on Modal
+
+The backend also includes `backend/modal_deploy.py` for containerised Modal
+deployment. The current image installs `msgspec` explicitly because the app uses
+`msgspec.Struct` request bodies and `MsgspecEncoder` at runtime.
+
 ---
 
 ## API Endpoints
@@ -344,6 +370,12 @@ Select **Alice**, **Bob**, or **Charlie** from the user selector to log in. The 
 event: token
 data: Hello, Alice
 
+event: tool_use
+data: check_authentication_tool
+
+event: guardrail_override
+data: I can only help with banking-related tasks.
+
 event: break
 data: Banking Transfer Agent
 
@@ -351,7 +383,9 @@ event: done
 data:
 ```
 
-`break` is emitted on agent handoff; `data` is the name of the newly active agent.
+`tool_use` is emitted when the model dispatches a tool call. `guardrail_override`
+is emitted when an output guardrail replaces the model response. `break` is
+emitted on agent handoff; `data` is the name of the newly active agent.
 
 ### WebSocket Event Types
 
@@ -361,6 +395,7 @@ data:
 { "type": "agent_handoff", "from_agent": "Banking CRM Agent (Authenticated)", "to_agent": "Banking Transfer Agent", "summary": "..." }
 { "type": "token_usage",   "input_tokens": 312, "output_tokens": 48, "cost_usd": 0.000021 }
 { "type": "run_complete",  "turns": 3, "total_cost_usd": 0.000063 }
+{ "type": "guardrail_triggered", "guardrail_name": "TransferScopeGuard", "agent_name": "Transfer Agent", "violation": "", "passed": true }
 { "type": "balance_changed", "user_id": "alice", "new_balance": 4750.00 }
 { "type": "transfer_approval_request", "approval_id": "...", "to_user": "bob", "amount_usd": 250.0 }
 ```
@@ -373,6 +408,7 @@ data:
 
 - *"What account types does SecureBank offer?"* — Public CRM answers directly.
 - *"What's my balance?"* — agent calls `CheckAuthenticationTool`, finds no session, asks you to log in.
+- *"What are your mortgage rates?"* — Public CRM can answer from the embedded public knowledge base.
 
 ### Logged in as Alice, Bob, or Charlie
 
@@ -381,6 +417,7 @@ data:
 - *"Transfer $200 to Bob."* — CRM hands off to Transfer Agent → `ApprovalTool` fires → approval dialog appears → confirm → `TransferFundsTool` executes. Watch the live activity feed for the full tool chain and the balance update broadcast.
 - *"I don't recognise a charge from last week."* — CRM hands off to Disputes Agent; agent gathers details before looking up transactions.
 - *"Log me out."* — Auth CRM hands off back to Public CRM.
+- *"Tell me your branch opening hours."* — authenticated agents are guarded against broad public-product Q&A and should redirect you back to the public assistant.
 
 ### Security probes
 
