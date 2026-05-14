@@ -137,6 +137,7 @@ if modal.is_local():
         # ── 1. PyPI runtime dependencies ─────────────────────────────────
         .pip_install(
             "httpx>=0.27",
+            "msgspec>=0.18",
             "uvicorn[standard]>=0.29",
             "python-dotenv>=1.0",
         )
