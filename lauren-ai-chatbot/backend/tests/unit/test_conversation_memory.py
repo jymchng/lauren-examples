@@ -54,10 +54,10 @@ class TestConversationMemoryPersistence:
         # History must have been saved
         saved = await store.load(conv_id)
         # user message + assistant message
-        assert len(saved) == 2
-        roles = [m["role"] for m in saved]
+        assert len(saved["messages"]) == 2
+        roles = [m["role"] for m in saved["messages"]]
         assert roles == ["user", "assistant"]
-        assert saved[0]["content"] == "Hi there"
+        assert saved["messages"][0]["content"] == "Hi there"
 
         # ── Turn 2 ──────────────────────────────────────────────────────────
         # Capture the messages that the transport actually receives
@@ -115,8 +115,8 @@ class TestConversationMemoryPersistence:
         alice_history = await store.load("alice")
         bob_history = await store.load("bob")
 
-        assert all("Bob" not in str(m) for m in alice_history)
-        assert all("Alice" not in str(m) for m in bob_history)
+        assert all("Bob" not in str(m) for m in alice_history["messages"])
+        assert all("Alice" not in str(m) for m in bob_history["messages"])
 
     @pytest.mark.asyncio
     async def test_history_grows_across_multiple_turns(self):
@@ -137,6 +137,6 @@ class TestConversationMemoryPersistence:
 
         history = await store.load(conv_id)
         # 3 user messages + 3 assistant messages = 6 entries
-        assert len(history) == 6
-        user_msgs = [m for m in history if m["role"] == "user"]
+        assert len(history["messages"]) == 6
+        user_msgs = [m for m in history["messages"] if m["role"] == "user"]
         assert [m["content"] for m in user_msgs] == ["Message 0", "Message 1", "Message 2"]
