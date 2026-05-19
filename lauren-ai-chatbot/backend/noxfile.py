@@ -19,16 +19,7 @@ import nox
 nox.options.envdir = os.path.join(os.path.expanduser("~"), ".cache", "nox", "lauren-chatbot")
 nox.options.sessions = ["tests"]
 
-import os as _os
-
-_HERE = _os.path.dirname(_os.path.abspath(__file__))
-# backend → lauren-ai-chatbot → lauren-examples → lauren-all
-_LAUREN_ALL = _os.path.dirname(_os.path.dirname(_os.path.dirname(_HERE)))
-FRAMEWORK_PATH = _os.path.join(_LAUREN_ALL, "lauren-framework")
-LAUREN_AI_PATH = _os.path.join(_LAUREN_ALL, "lauren-ai")
-
 PYTHON = "3.12"
-
 
 def _install_dev(session: nox.Session) -> None:
     """Install all local editable packages plus dev extras in one pip call."""
@@ -39,11 +30,6 @@ def _install_dev(session: nox.Session) -> None:
         "lauren",
         "lauren-ai[openai]",
     )
-    # session.install(
-    #     "-e", FRAMEWORK_PATH,
-    #     "-e", f"{LAUREN_AI_PATH}[openai]",
-    #     "-e", ".[dev]",
-    # )
 
 
 # ---------------------------------------------------------------------------
@@ -60,7 +46,7 @@ def tests(session: nox.Session) -> None:
         "tests/",
         "-q",
         "--tb=short",
-        f"--cov=app",
+        "--cov=app",
         "--cov-report=term-missing",
         "--cov-fail-under=90",
         *session.posargs,
