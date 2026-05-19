@@ -36,12 +36,8 @@ def _install_dev(session: nox.Session) -> None:
         "uv",
         "pip",
         "install",
-        "-e",
-        FRAMEWORK_PATH,
-        "-e",
-        f"{LAUREN_AI_PATH}[openai]",
-        "-e",
-        ".[dev]",
+        "lauren",
+        "lauren-ai[openai]",
     )
     # session.install(
     #     "-e", FRAMEWORK_PATH,

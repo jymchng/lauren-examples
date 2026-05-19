@@ -25,10 +25,6 @@ dev = [
     "nox>=2024.0",
 ]
 
-[tool.uv.sources]
-lauren = { path = "../../../lauren-framework", editable = true }
-lauren-ai = { path = "../../../lauren-ai", editable = true }
-
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["app*"]

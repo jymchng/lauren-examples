@@ -127,8 +127,6 @@ if modal.is_local():
     _dist = Path(tempfile.mkdtemp(prefix="modal-wheels-"))
     atexit.register(shutil.rmtree, _dist, ignore_errors=True)
 
-    _framework_whl = _build_wheel(FRAMEWORK_PATH, _dist / "framework")
-    _lauren_ai_whl = _build_wheel(LAUREN_AI_PATH, _dist / "lauren-ai")
     _backend_whl   = _build_wheel(_HERE,          _dist / "backend")
 
     image = (
@@ -136,27 +134,13 @@ if modal.is_local():
 
         # ── 1. PyPI runtime dependencies ─────────────────────────────────
         .pip_install(
+            "lauren",
+            "lauren-ai[openai]",
             "httpx>=0.27",
             "msgspec>=0.18",
             "uvicorn[standard]>=0.29",
             "python-dotenv>=1.0",
         )
-
-        # ── 2. lauren-framework ──────────────────────────────────────────
-        .add_local_file(
-            str(_framework_whl),
-            f"/opt/wheels/{_framework_whl.name}",
-            copy=True,
-        )
-        .run_commands(f"pip install --quiet /opt/wheels/{_framework_whl.name}")
-
-        # ── 3. lauren-ai ────────────────────────────────────────────────
-        .add_local_file(
-            str(_lauren_ai_whl),
-            f"/opt/wheels/{_lauren_ai_whl.name}",
-            copy=True,
-        )
-        .run_commands(f"pip install --quiet '/opt/wheels/{_lauren_ai_whl.name}[openai]'")
 
         # ── 4. Backend application ───────────────────────────────────────
         .add_local_file(
