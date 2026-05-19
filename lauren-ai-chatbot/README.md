@@ -2,7 +2,7 @@
 
 A production-grade AI banking demo built on **[Lauren](https://github.com/lauren-framework/lauren)** and **[Lauren AI](https://github.com/lauren-framework/lauren-ai)**. It is intentionally non-trivial: a multi-agent system with real routing, real security, `msgspec`-backed request models, real-time WebSocket events, output guardrails, and a human-in-the-loop transfer approval flow, all wired together through the framework's module system.
 
-![Lauren AI Chatbot](https://raw.githubusercontent.com/lauren-framework/lauren-examples/refs/heads/main/lauren-ai-chatbot/assets/lauren-ai-chatbot.PNG)
+![Lauren AI Chatbot](https://raw.githubusercontent.com/lauren-framework/lauren-assets/refs/heads/main/lauren-examples/lauren-ai-chatbot.PNG)
 
 ---
 
