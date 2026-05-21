@@ -10,9 +10,14 @@ import os
 
 from lauren_ai import LLMConfig
 
+API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
+
+if not API_KEY:
+    raise ValueError("LLM API key not found. Please set the `OPENROUTER_API_KEY` environment variable.")
+
 llm_config = LLMConfig(
     provider="openai",
     model=os.environ.get("LLM_MODEL", "poolside/laguna-xs.2:free"),
-    api_key=os.environ.get("OPENROUTER_API_KEY", ""),
-    base_url="https://openrouter.ai/api/v1",
+    api_key=API_KEY,
+    base_url=os.environ.get("LLM_BASE_URL", "https://openrouter.ai/api/v1"),
 )
