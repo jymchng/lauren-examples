@@ -9,8 +9,10 @@ import {
   Trash2,
   X,
   ArrowRight,
+  ArrowDown,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { sendChatMessage } from '@/lib/api'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useChatStore } from '@/store/chat-store'
 import { AGENTS, getAgentByType } from './agents'
@@ -288,15 +290,79 @@ export function ChatInterface() {
 
   const [input, setInput] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const abortRef = useRef<AbortController | null>(null)
 
+  // "Sticky" auto-scroll: only follow the tail when the user is already
+  // pinned to the bottom.  When they scroll up to read history, leave
+  // them there and surface a "jump to latest" button.
+  const [isAtBottom, setIsAtBottom] = useState(true)
+  const [unreadCount, setUnreadCount] = useState(0)
+  const lastMessageCountRef = useRef(0)
+  // Mirror of isAtBottom readable from the textarea's onInput handler
+  // (which fires outside React's render cycle, so a ref is the only way
+  // to read the latest value synchronously after the textarea grows).
+  const isAtBottomRef = useRef(true)
+
   const currentAgentDef = getAgentByType(currentAgent)
 
-  // Auto-scroll to bottom when messages change
+  // Measure whether the scroll container is pinned to the bottom.
+  // A small threshold (80px) accounts for sub-pixel rounding and the
+  // "almost there" case where the user just nudged the scrollbar.
+  const checkIsAtBottom = useCallback(() => {
+    const el = scrollContainerRef.current
+    if (!el) return true
+    const distance = el.scrollHeight - el.scrollTop - el.clientHeight
+    return distance < 80
+  }, [])
+
+  const handleScroll = useCallback(() => {
+    const atBottom = checkIsAtBottom()
+    setIsAtBottom(atBottom)
+    isAtBottomRef.current = atBottom
+    if (atBottom) {
+      setUnreadCount(0)
+    }
+  }, [checkIsAtBottom])
+
+  // Scroll to bottom (programmatic).  Used by the "jump to latest"
+  // button and by the initial mount.  ``behavior`` is auto on first
+  // mount to avoid the smooth-scroll-from-top jolt.
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
+    const el = scrollContainerRef.current
+    if (!el) return
+    el.scrollTo({ top: el.scrollHeight, behavior })
+  }, [])
+
+  // Auto-scroll on message / streaming changes, but only if the user
+  // is already at the bottom.  Track the new-message count so we can
+  // badge the "jump to latest" button when they aren't.
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, isStreaming])
+    const newCount = messages.length
+    const prevCount = lastMessageCountRef.current
+    lastMessageCountRef.current = newCount
+
+    if (newCount > prevCount) {
+      if (isAtBottom) {
+        scrollToBottom('smooth')
+        setUnreadCount(0)
+      } else {
+        // New message arrived while user is reading history.
+        setUnreadCount((c) => c + (newCount - prevCount))
+      }
+    } else if (isAtBottom) {
+      // Streaming deltas grow the last message in place; keep us pinned.
+      scrollToBottom('smooth')
+    }
+  }, [messages, isStreaming, isAtBottom, scrollToBottom])
+
+  // When the user switches agents, always jump to the latest message.
+  useEffect(() => {
+    scrollToBottom('auto')
+    setIsAtBottom(true)
+    setUnreadCount(0)
+  }, [currentAgent, scrollToBottom])
 
   // Focus textarea on agent change
   useEffect(() => {
@@ -409,19 +475,22 @@ export function ChatInterface() {
       abortRef.current = abortController
 
       try {
-        const response = await fetch('/api/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+        // Route through the Python backend when ``NEXT_PUBLIC_BACKEND_URL``
+        // is set (the default in dev + deploy).  ``sendChatMessage``
+        // already prepends ``API_BASE`` so the URL becomes
+        // ``http://localhost:8000/api/chat`` instead of the broken
+        // Next.js internal route (which depends on Prisma).
+        const response = await sendChatMessage(
+          {
             message: text,
-            conversationId,
+            conversationId: conversationId ?? undefined,
             agentType: currentAgent,
-          }),
-          signal: abortController.signal,
-        })
+          },
+          { signal: abortController.signal },
+        )
 
         if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`)
+          throw new Error(`HTTP ${response.status} ${await response.text()}`)
         }
 
         const reader = response.body?.getReader()
@@ -650,7 +719,11 @@ export function ChatInterface() {
         </AnimatePresence>
 
         {/* Messages Area */}
-        <div className="flex-1 overflow-y-auto">
+        <div
+          ref={scrollContainerRef}
+          onScroll={handleScroll}
+          className="flex-1 overflow-y-auto relative"
+        >
           {messages.length === 0 ? (
             <EmptyChatState
               agentType={currentAgent}
@@ -675,6 +748,34 @@ export function ChatInterface() {
               <div ref={messagesEndRef} />
             </div>
           )}
+
+          {/* "Jump to latest" pill — appears once the user scrolls up
+              and a new message arrives.  Clicking it pins them back to
+              the bottom and clears the unread counter. */}
+          <AnimatePresence>
+            {!isAtBottom && messages.length > 0 && (
+              <motion.button
+                initial={{ opacity: 0, y: 10, scale: 0.9 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 10, scale: 0.9 }}
+                transition={{ duration: 0.18, ease: 'easeOut' }}
+                onClick={() => {
+                  scrollToBottom('smooth')
+                  setIsAtBottom(true)
+                  setUnreadCount(0)
+                }}
+                className="sticky bottom-3 left-0 right-0 mx-auto w-fit z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-background/95 border border-border/60 shadow-md backdrop-blur-sm text-xs font-medium hover:bg-accent/80 transition-colors"
+              >
+                <ArrowDown className="h-3.5 w-3.5" />
+                <span>Jump to latest</span>
+                {unreadCount > 0 && (
+                  <span className="ml-1 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-restaurant-red text-restaurant-red-foreground text-[10px] font-semibold">
+                    {unreadCount}
+                  </span>
+                )}
+              </motion.button>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* Input Area */}
@@ -713,8 +814,22 @@ export function ChatInterface() {
                 }}
                 onInput={(e) => {
                   const target = e.target as HTMLTextAreaElement
+                  const prevHeight = target.offsetHeight
                   target.style.height = 'auto'
-                  target.style.height = Math.min(target.scrollHeight, 120) + 'px'
+                  const nextHeight = Math.min(target.scrollHeight, 120)
+                  target.style.height = nextHeight + 'px'
+
+                  // Growing the textarea shrinks the messages container
+                  // above it.  If the user is pinned to the bottom, keep
+                  // them pinned by scrolling the messages container to
+                  // its new bottom — otherwise the last message slides
+                  // out of view as the user types.
+                  if (isAtBottomRef.current && nextHeight !== prevHeight) {
+                    const container = scrollContainerRef.current
+                    if (container) {
+                      container.scrollTop = container.scrollHeight
+                    }
+                  }
                 }}
               />
               {input && (
