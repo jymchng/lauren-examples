@@ -1,0 +1,87 @@
+# Netlify configuration for the Lauren Eats frontend.
+#
+# Build context: this file is at the frontend project root, so Netlify
+# runs the build in ./ (i.e. lauren-eats/frontend).  All ``command``
+# and ``publish`` paths are relative to that.
+#
+# Required environment variables (set in the Netlify UI, NOT in git):
+#
+#   NEXT_PUBLIC_BACKEND_URL
+#       The public URL of the deployed Python backend.  After running
+#       `modal deploy modal_deploy.py` the URL is printed in the CLI
+#       output, e.g. https://lauren-eats--<workspace>.modal.run
+#
+# Optional:
+#
+#   NEXT_TELEMETRY_DISABLED=1   — silences the Next.js build telemetry
+#                                  nag and speeds up ``next build``.
+#
+# The build command uses ``bun`` because that's what the project's
+# ``package.json`` scripts were written against.  If you don't have
+# bun on the build image, swap to ``npm run build`` — both work
+# because the lockfile is plain npm-compatible.
+
+[build]
+  base    = "."
+  command = "bun run build"
+  publish = ".next"
+
+# ─── Build environment ────────────────────────────────────────────────────
+[build.environment]
+  NODE_VERSION = "22"
+  NPM_FLAGS    = "--prefer-offline --no-audit --no-fund"
+  NEXT_TELEMETRY_DISABLED = "1"
+
+# ─── Redirects / rewrites ────────────────────────────────────────────────
+# 1. /_next/static/*  → serve immutable assets with a 1-year cache.
+# 2. Everything else  → fall through to Next.js (SPA-style routing for
+#                       App Router pages).
+[[redirects]]
+  from   = "/_next/static/*"
+  to     = "/_next/static/:splat"
+  status = 200
+  headers = { Cache-Control = "public, max-age=31536000, immutable" }
+
+# ─── Security headers ───────────────────────────────────────────────────
+# Applied to every response.  The backend is on a different origin
+# (Modal), so we set CORS-friendly headers *on the static assets only*
+# and leave the API CORS to the backend's CorsMiddleware.
+[[headers]]
+  for   = "/*"
+  [headers.values]
+    X-Content-Type-Options      = "nosniff"
+    X-Frame-Options             = "DENY"
+    Referrer-Policy             = "strict-origin-when-cross-origin"
+    Permissions-Policy          = "camera=(), microphone=(), geolocation=()"
+    Strict-Transport-Security   = "max-age=31536000; includeSubDomains; preload"
+    X-XSS-Protection            = "1; mode=block"
+
+[[headers]]
+  for   = "/_next/static/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# ─── Edge Functions (optional, placeholder) ─────────────────────────────
+# Uncomment if you later add an edge function for auth, geo-redirects,
+# or a request-signing proxy in front of the Modal backend.
+#
+# [[edge_functions]]
+#   path     = "/api/proxy/*"
+#   function = "proxy"
+
+# ─── Deploy previews ─────────────────────────────────────────────────────
+# Every PR gets a unique preview URL; the backend URL stays the same
+# (Modal handles concurrent deploys via different app names).
+[context.deploy-preview]
+  command = "bun run build"
+
+[context.branch-deploy]
+  command = "bun run build"
+
+# ─── Functions runtime ────────────────────────────────────────────────────
+# Next.js 13+ App Router doesn't need Netlify Functions for SSR — the
+# build output is fully static (with the default ``output: standalone``
+# in next.config.ts).  This block is here for documentation; remove if
+# you switch to server components with dynamic routes.
+[functions]
+  node_bundler = "esbuild"
