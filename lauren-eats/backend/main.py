@@ -21,6 +21,10 @@ from __future__ import annotations
 
 import os
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from lauren import LaurenFactory
 from lauren.logging import default_logger
 
