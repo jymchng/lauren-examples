@@ -63,9 +63,7 @@ class OrderController:
 
     @post("/")
     async def create_order(self, body: Json[CreateOrderRequest]) -> dict:
-        order = await self._svc.create_order(
-            body.model_dump(exclude_unset=True, by_alias=True)
-        )
+        order = await self._svc.create_order(body.model_dump(exclude_unset=True, by_alias=True))
         return {"success": True, "data": order}, 201
 
     @get("/{id}")

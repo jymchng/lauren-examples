@@ -64,9 +64,7 @@ class SearchMenuTool:
             conditions.append("c.slug = ?")
             params.append(category)
         if query:
-            conditions.append(
-                "(mi.name LIKE ? OR mi.name_zh LIKE ? OR mi.description LIKE ?)"
-            )
+            conditions.append("(mi.name LIKE ? OR mi.name_zh LIKE ? OR mi.description LIKE ?)")
             params.extend([f"%{query}%"] * 3)
 
         where = " AND ".join(conditions)
@@ -243,9 +241,7 @@ class CreateOrderTool:
         if not items:
             return {"error": "Order must contain at least one item."}
         if order_type not in self._ORDER_TYPES:
-            return {
-                "error": f"Invalid order type {order_type!r}. Valid: {self._ORDER_TYPES}"
-            }
+            return {"error": f"Invalid order type {order_type!r}. Valid: {self._ORDER_TYPES}"}
 
         # Normalise + validate menu item ids.
         order_items: list[dict] = []
@@ -269,8 +265,7 @@ class CreateOrderTool:
         menu_item_ids = [oi["menu_item_id"] for oi in order_items]
         placeholders = ",".join(["?"] * len(menu_item_ids))
         rows = await self._db.fetch_all(
-            f"SELECT id, price, is_available FROM menu_items "
-            f"WHERE id IN ({placeholders})",
+            f"SELECT id, price, is_available FROM menu_items WHERE id IN ({placeholders})",
             tuple(menu_item_ids),
         )
         menu_map = {r["id"]: r for r in rows}
@@ -445,9 +440,7 @@ class CreateReservationTool:
         if not _time_re().match(time or ""):
             return {"error": "time must be in HH:MM format."}
         if occasion and occasion not in _VALID_OCCASIONS:
-            return {
-                "error": f"Invalid occasion {occasion!r}. Valid: {list(_VALID_OCCASIONS)}"
-            }
+            return {"error": f"Invalid occasion {occasion!r}. Valid: {list(_VALID_OCCASIONS)}"}
 
         reservation_id = _new_id()
         await self._db.execute(
@@ -523,8 +516,7 @@ class HandoffTo:
 
         if conversation_id:
             await self._db.execute(
-                "UPDATE conversations SET agent_type = ?, "
-                "updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                "UPDATE conversations SET agent_type = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
                 (agent_type, conversation_id),
             )
         return {
@@ -552,9 +544,7 @@ def _new_order_number() -> str:
     """Generate a unique order number of the form ``LE-HEX-XXXX``."""
     import time as _time
 
-    suffix = "".join(
-        secrets.choice(string.ascii_uppercase + string.digits) for _ in range(4)
-    )
+    suffix = "".join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(4))
     return f"LE-{hex(int(_time.time()))[2:].upper()}-{suffix}"
 
 

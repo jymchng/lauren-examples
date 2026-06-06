@@ -57,9 +57,7 @@ class ReservationController:
 
     @post("/")
     async def create_reservation(self, body: Json[CreateReservationRequest]) -> dict:
-        reservation = await self._svc.create_reservation(
-            body.model_dump(exclude_unset=True, by_alias=True)
-        )
+        reservation = await self._svc.create_reservation(body.model_dump(exclude_unset=True, by_alias=True))
         return {"success": True, "data": reservation}, 201
 
     @patch("/{id}")

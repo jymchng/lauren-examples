@@ -77,14 +77,10 @@ class ChatController:
 
         async def generate() -> AsyncGenerator[ServerSentEvent, None]:
             try:
-                conv_id = await self._svc._ensure_conversation(
-                    conversation_id, agent_type, message
-                )
+                conv_id = await self._svc._ensure_conversation(conversation_id, agent_type, message)
                 await self._svc._persist_user_message(conv_id, message, agent_type)
 
-                yield ServerSentEvent(
-                    data=json.dumps({"type": "meta", "conversationId": conv_id})
-                )
+                yield ServerSentEvent(data=json.dumps({"type": "meta", "conversationId": conv_id}))
 
                 agent_cls = _agent_class(agent_type)
                 runner = await self._svc._runner_for(agent_cls)

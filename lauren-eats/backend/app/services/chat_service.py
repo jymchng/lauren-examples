@@ -100,8 +100,7 @@ class ChatService:
         conv_id = conversation_id or _new_id()
         # Upsert — if the caller sent a fresh id, also create the row.
         await self._db.execute(
-            "INSERT OR IGNORE INTO conversations (id, agent_type, title, status) "
-            "VALUES (?, ?, ?, 'active')",
+            "INSERT OR IGNORE INTO conversations (id, agent_type, title, status) VALUES (?, ?, ?, 'active')",
             (conv_id, agent_type, first_message[:50]),
         )
         return conv_id

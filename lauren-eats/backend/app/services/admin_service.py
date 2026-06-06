@@ -31,10 +31,16 @@ class AdminService:
         recent_orders = []
         for r in recent_rows:
             order = {
-                "id": r["id"], "orderNumber": r["order_number"], "status": r["status"],
-                "totalAmount": r["total_amount"], "subtotal": r["subtotal"],
-                "tax": r["tax"], "type": r["type"], "notes": r["notes"],
-                "tableNumber": r["table_number"], "createdAt": r["created_at"],
+                "id": r["id"],
+                "orderNumber": r["order_number"],
+                "status": r["status"],
+                "totalAmount": r["total_amount"],
+                "subtotal": r["subtotal"],
+                "tax": r["tax"],
+                "type": r["type"],
+                "notes": r["notes"],
+                "tableNumber": r["table_number"],
+                "createdAt": r["created_at"],
             }
             # Get items
             items = await self._db.fetch_all(
@@ -44,8 +50,12 @@ class AdminService:
                 (r["id"],),
             )
             order["orderItems"] = [
-                {"id": i["id"], "menuItem": {"name": i.get("name", ""), "nameZh": i.get("name_zh")},
-                 "quantity": i["quantity"], "totalPrice": i["total_price"]}
+                {
+                    "id": i["id"],
+                    "menuItem": {"name": i.get("name", ""), "nameZh": i.get("name_zh")},
+                    "quantity": i["quantity"],
+                    "totalPrice": i["total_price"],
+                }
                 for i in items
             ]
             recent_orders.append(order)
@@ -59,14 +69,21 @@ class AdminService:
         for pr in pop_rows:
             mi = await self._db.fetch_one("SELECT * FROM menu_items WHERE id = ?", (pr["menu_item_id"],))
             if mi:
-                popular_items.append({
-                    "id": mi["id"], "name": mi["name"], "nameZh": mi.get("name_zh"),
-                    "price": mi["price"], "image": mi.get("image"), "totalOrdered": pr["total_qty"],
-                })
+                popular_items.append(
+                    {
+                        "id": mi["id"],
+                        "name": mi["name"],
+                        "nameZh": mi.get("name_zh"),
+                        "price": mi["price"],
+                        "image": mi.get("image"),
+                        "totalOrdered": pr["total_qty"],
+                    }
+                )
 
         # Revenue chart (last 7 days)
         revenue_chart_data = []
         from datetime import datetime, timedelta
+
         today = datetime.now()
         for i in range(6, -1, -1):
             d = today - timedelta(days=i)
@@ -78,12 +95,14 @@ class AdminService:
                 (date_str, next_str),
             )
             day_rev = round(sum(r["total_amount"] for r in day_rows), 2)
-            revenue_chart_data.append({
-                "date": date_str,
-                "day": d.strftime("%a"),
-                "revenue": day_rev,
-                "orders": len(day_rows),
-            })
+            revenue_chart_data.append(
+                {
+                    "date": date_str,
+                    "day": d.strftime("%a"),
+                    "revenue": day_rev,
+                    "orders": len(day_rows),
+                }
+            )
 
         return {
             "totalOrders": total_orders,
@@ -159,7 +178,9 @@ class AdminService:
         active_conv = await self._db.fetch_count("SELECT COUNT(*) FROM conversations WHERE status = 'active'")
         ended_conv = await self._db.fetch_count("SELECT COUNT(*) FROM conversations WHERE status = 'ended'")
         total_user_msgs = len(user_msgs)
-        total_asst_msgs = await self._db.fetch_count("SELECT COUNT(*) FROM agent_messages WHERE role = 'assistant'")
+        total_asst_msgs = await self._db.fetch_count(
+            "SELECT COUNT(*) FROM agent_messages WHERE role = 'assistant'"
+        )
         avg_msgs = round((total_user_msgs + total_asst_msgs) / total_conv, 1) if total_conv > 0 else 0
 
         quality_metrics = {

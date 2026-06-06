@@ -23,9 +23,7 @@ class TestDatabaseServiceLifecycle:
 
     async def test_schema_initialised(self, db):
         """All expected tables exist after ``@post_construct`` runs."""
-        rows = await db.fetch_all(
-            "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
-        )
+        rows = await db.fetch_all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
         names = {r["name"] for r in rows}
         for required in (
             "users",

@@ -24,15 +24,10 @@ import os
 
 from dotenv import load_dotenv
 
-load_dotenv()
-
-# Temporarily enable DEBUG for the OpenAI transport so we can see
-# the raw tool-call delta format the poolside model sends.
-logging.getLogger("lauren_ai._transport._openai").setLevel(logging.DEBUG)
-logging.basicConfig(level=logging.WARNING)
+load_dotenv(override=True)
 
 from lauren import LaurenFactory
-from lauren.logging import default_logger, LogLevel
+from lauren.logging import default_logger
 
 from app.ai.signals import signal_bus
 from app.interceptors.timing_interceptor import TimingInterceptor
@@ -47,7 +42,7 @@ def create_app():
         AppModule,
         global_middlewares=[CorsMiddleware],
         global_interceptors=[TimingInterceptor],
-        logger=default_logger(level=LogLevel.DEBUG),
+        logger=default_logger(),
         signals=signal_bus,
         docs_url="/docs",
         openapi_info={

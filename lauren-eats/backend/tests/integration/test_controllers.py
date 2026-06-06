@@ -167,11 +167,14 @@ class TestOrderController:
     async def test_create_order(self, client, clean_db):
         await _seed_category(clean_db)
         await _seed_item(clean_db, "item-1", price=10.0)
-        r = client.post("/api/orders", json={
-            "type": "dine_in",
-            "tableNumber": "5",
-            "items": [{"menuItemId": "item-1", "quantity": 2}],
-        })
+        r = client.post(
+            "/api/orders",
+            json={
+                "type": "dine_in",
+                "tableNumber": "5",
+                "items": [{"menuItemId": "item-1", "quantity": 2}],
+            },
+        )
         assert r.status_code in (200, 201)
         body = r.json()["data"]
         assert body["status"] == "pending"
@@ -185,19 +188,25 @@ class TestOrderController:
     async def test_create_order_invalid_type(self, client, clean_db):
         await _seed_category(clean_db)
         await _seed_item(clean_db)
-        r = client.post("/api/orders", json={
-            "type": "flying",
-            "items": [{"menuItemId": "item-1", "quantity": 1}],
-        })
+        r = client.post(
+            "/api/orders",
+            json={
+                "type": "flying",
+                "items": [{"menuItemId": "item-1", "quantity": 1}],
+            },
+        )
         assert r.status_code in (400, 500)
 
     async def test_get_order_ok(self, client, clean_db):
         await _seed_category(clean_db)
         await _seed_item(clean_db, "item-1", price=10.0)
-        r1 = client.post("/api/orders", json={
-            "type": "dine_in",
-            "items": [{"menuItemId": "item-1", "quantity": 1}],
-        })
+        r1 = client.post(
+            "/api/orders",
+            json={
+                "type": "dine_in",
+                "items": [{"menuItemId": "item-1", "quantity": 1}],
+            },
+        )
         order_id = r1.json()["data"]["id"]
         r2 = client.get(f"/api/orders/{order_id}")
         assert r2.status_code == 200
@@ -210,10 +219,13 @@ class TestOrderController:
     async def test_update_order_status(self, client, clean_db):
         await _seed_category(clean_db)
         await _seed_item(clean_db, "item-1", price=10.0)
-        r1 = client.post("/api/orders", json={
-            "type": "dine_in",
-            "items": [{"menuItemId": "item-1", "quantity": 1}],
-        })
+        r1 = client.post(
+            "/api/orders",
+            json={
+                "type": "dine_in",
+                "items": [{"menuItemId": "item-1", "quantity": 1}],
+            },
+        )
         order_id = r1.json()["data"]["id"]
         r2 = client.patch(f"/api/orders/{order_id}", json={"status": "preparing"})
         assert r2.status_code == 200
@@ -362,6 +374,7 @@ class TestSeedController:
         monkeypatch.setattr(seed_mod, "run_seed", boom)
         # Need to force a fresh import since the controller already bound the function
         import importlib
+
         importlib.reload(seed_controller)
         # Re-build a tiny app or just check the endpoint raises
         # For now, just verify that on success path the endpoint returns 200

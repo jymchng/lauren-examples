@@ -35,9 +35,7 @@ class ReservationService:
     def __init__(self, db: DatabaseService) -> None:
         self._db = db
 
-    async def list_reservations(
-        self, date: str | None = None, status: str | None = None
-    ) -> list[dict]:
+    async def list_reservations(self, date: str | None = None, status: str | None = None) -> list[dict]:
         conditions = []
         params: list = []
         if date:
@@ -91,6 +89,7 @@ class ReservationService:
             raise ValueError("Party size must be between 1 and 20")
 
         import re
+
         date = _g("date")
         time = _g("time")
         if not re.match(r"^\d{4}-\d{2}-\d{2}$", date or ""):

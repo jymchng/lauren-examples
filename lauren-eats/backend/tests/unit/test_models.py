@@ -55,6 +55,7 @@ class TestPaginatedResponse:
         # Pydantic v2 generic models can't be instantiated bare, but we can
         # verify the class is exported and has the expected fields.
         from app.models import common
+
         assert hasattr(common, "PaginatedResponse")
         assert hasattr(common, "Pagination")
         assert hasattr(common, "ApiResponse")

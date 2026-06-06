@@ -159,9 +159,7 @@ class TestMenuService:
     async def test_update_menu_item_partial(self, clean_db, menu_service: MenuService):
         await _seed_category(clean_db)
         await _seed_item(clean_db)
-        result = await menu_service.update_menu_item(
-            "item-1", {"isAvailable": False, "price": 19.99}
-        )
+        result = await menu_service.update_menu_item("item-1", {"isAvailable": False, "price": 19.99})
         assert result is not None
         assert result["isAvailable"] is False
         assert result["price"] == 19.99
@@ -177,7 +175,9 @@ class TestMenuService:
         assert categories[0]["menuItems"][0]["id"] == "item-1"
 
     async def test_list_categories_excludes_inactive(self, clean_db, menu_service: MenuService):
-        await db_execute(clean_db, "INSERT INTO categories (id, name, slug, is_active) VALUES ('cat-x', 'X', 'x', 0)")
+        await db_execute(
+            clean_db, "INSERT INTO categories (id, name, slug, is_active) VALUES ('cat-x', 'X', 'x', 0)"
+        )
         cats = await menu_service.list_categories()
         assert cats == []
 
@@ -198,10 +198,12 @@ class TestOrderService:
     async def test_list_orders_with_status_filter(self, clean_db, order_service: OrderService):
         await _seed_category(clean_db)
         await _seed_item(clean_db)
-        await order_service.create_order({
-            "type": "dine_in",
-            "items": [{"menuItemId": "item-1", "quantity": 1}],
-        })
+        await order_service.create_order(
+            {
+                "type": "dine_in",
+                "items": [{"menuItemId": "item-1", "quantity": 1}],
+            }
+        )
         pending = await order_service.list_orders(status="pending")
         confirmed = await order_service.list_orders(status="confirmed")
         assert len(pending) == 1
@@ -211,11 +213,13 @@ class TestOrderService:
         await _seed_user(clean_db, "u1")
         await _seed_category(clean_db)
         await _seed_item(clean_db)
-        await order_service.create_order({
-            "userId": "u1",
-            "type": "dine_in",
-            "items": [{"menuItemId": "item-1", "quantity": 1}],
-        })
+        await order_service.create_order(
+            {
+                "userId": "u1",
+                "type": "dine_in",
+                "items": [{"menuItemId": "item-1", "quantity": 1}],
+            }
+        )
         assert len(await order_service.list_orders(user_id="u1")) == 1
         assert await order_service.list_orders(user_id="other") == []
 
@@ -225,10 +229,12 @@ class TestOrderService:
     async def test_create_order_minimal(self, clean_db, order_service: OrderService):
         await _seed_category(clean_db)
         await _seed_item(clean_db)
-        order = await order_service.create_order({
-            "type": "dine_in",
-            "items": [{"menuItemId": "item-1", "quantity": 2}],
-        })
+        order = await order_service.create_order(
+            {
+                "type": "dine_in",
+                "items": [{"menuItemId": "item-1", "quantity": 2}],
+            }
+        )
         assert order["status"] == "pending"
         assert order["orderNumber"].startswith("LE-")
         assert order["subtotal"] == pytest.approx(29.0)
@@ -240,23 +246,27 @@ class TestOrderService:
     async def test_create_order_with_table(self, clean_db, order_service: OrderService):
         await _seed_category(clean_db)
         await _seed_item(clean_db)
-        order = await order_service.create_order({
-            "type": "dine_in",
-            "tableNumber": "5",
-            "items": [{"menuItemId": "item-1", "quantity": 1}],
-        })
+        order = await order_service.create_order(
+            {
+                "type": "dine_in",
+                "tableNumber": "5",
+                "items": [{"menuItemId": "item-1", "quantity": 1}],
+            }
+        )
         assert order["tableNumber"] == "5"
 
     async def test_create_order_accepts_snake_case(self, clean_db, order_service: OrderService):
         await _seed_user(clean_db, "u1")
         await _seed_category(clean_db)
         await _seed_item(clean_db)
-        order = await order_service.create_order({
-            "user_id": "u1",
-            "type": "dine_in",
-            "table_number": "9",
-            "items": [{"menu_item_id": "item-1", "quantity": 1}],
-        })
+        order = await order_service.create_order(
+            {
+                "user_id": "u1",
+                "type": "dine_in",
+                "table_number": "9",
+                "items": [{"menu_item_id": "item-1", "quantity": 1}],
+            }
+        )
         assert order["userId"] == "u1"
         assert order["tableNumber"] == "9"
 
@@ -266,32 +276,40 @@ class TestOrderService:
 
     async def test_create_order_invalid_type_raises(self, clean_db, order_service: OrderService):
         with pytest.raises(ValueError, match="Valid order type"):
-            await order_service.create_order({
-                "type": "flying",
-                "items": [{"menuItemId": "x", "quantity": 1}],
-            })
+            await order_service.create_order(
+                {
+                    "type": "flying",
+                    "items": [{"menuItemId": "x", "quantity": 1}],
+                }
+            )
 
     async def test_create_order_missing_item_id_raises(self, clean_db, order_service: OrderService):
         with pytest.raises(ValueError, match="menuItemId"):
-            await order_service.create_order({
-                "type": "dine_in",
-                "items": [{"quantity": 1}],
-            })
+            await order_service.create_order(
+                {
+                    "type": "dine_in",
+                    "items": [{"quantity": 1}],
+                }
+            )
 
     async def test_create_order_unavailable_item_raises(self, clean_db, order_service: OrderService):
         with pytest.raises(ValueError, match="unavailable"):
-            await order_service.create_order({
-                "type": "dine_in",
-                "items": [{"menuItemId": "missing", "quantity": 1}],
-            })
+            await order_service.create_order(
+                {
+                    "type": "dine_in",
+                    "items": [{"menuItemId": "missing", "quantity": 1}],
+                }
+            )
 
     async def test_update_order_status(self, clean_db, order_service: OrderService):
         await _seed_category(clean_db)
         await _seed_item(clean_db)
-        order = await order_service.create_order({
-            "type": "dine_in",
-            "items": [{"menuItemId": "item-1", "quantity": 1}],
-        })
+        order = await order_service.create_order(
+            {
+                "type": "dine_in",
+                "items": [{"menuItemId": "item-1", "quantity": 1}],
+            }
+        )
         updated = await order_service.update_order_status(order["id"], "preparing")
         assert updated is not None
         assert updated["status"] == "preparing"
@@ -330,7 +348,9 @@ class TestReservationService:
         res = await reservation_service.create_reservation({**self.BASE, "occasion": "birthday"})
         assert res["occasion"] == "birthday"
 
-    async def test_create_reservation_accepts_snake_case(self, clean_db, reservation_service: ReservationService):
+    async def test_create_reservation_accepts_snake_case(
+        self, clean_db, reservation_service: ReservationService
+    ):
         data = {
             "customer_name": "Bob",
             "customer_phone": "555-9999",
@@ -343,12 +363,16 @@ class TestReservationService:
         assert res["customerName"] == "Bob"
         assert res["customerEmail"] == "b@x.com"
 
-    async def test_create_reservation_missing_field_raises(self, clean_db, reservation_service: ReservationService):
+    async def test_create_reservation_missing_field_raises(
+        self, clean_db, reservation_service: ReservationService
+    ):
         bad = {k: v for k, v in self.BASE.items() if k != "customerName"}
         with pytest.raises(ValueError, match="customerName"):
             await reservation_service.create_reservation(bad)
 
-    async def test_create_reservation_invalid_party_size(self, clean_db, reservation_service: ReservationService):
+    async def test_create_reservation_invalid_party_size(
+        self, clean_db, reservation_service: ReservationService
+    ):
         # 0 fails the truthy check (treated as "missing"); 21 fails the range check.
         with pytest.raises(ValueError, match="Missing required field"):
             await reservation_service.create_reservation({**self.BASE, "partySize": 0})
@@ -363,7 +387,9 @@ class TestReservationService:
         with pytest.raises(ValueError, match="HH:MM"):
             await reservation_service.create_reservation({**self.BASE, "time": "7pm"})
 
-    async def test_create_reservation_invalid_occasion(self, clean_db, reservation_service: ReservationService):
+    async def test_create_reservation_invalid_occasion(
+        self, clean_db, reservation_service: ReservationService
+    ):
         with pytest.raises(ValueError, match="Invalid occasion"):
             await reservation_service.create_reservation({**self.BASE, "occasion": "divorce"})
 
@@ -372,11 +398,15 @@ class TestReservationService:
         updated = await reservation_service.update_reservation_status(res["id"], "confirmed")
         assert updated["status"] == "confirmed"
 
-    async def test_update_reservation_status_invalid_raises(self, clean_db, reservation_service: ReservationService):
+    async def test_update_reservation_status_invalid_raises(
+        self, clean_db, reservation_service: ReservationService
+    ):
         with pytest.raises(ValueError, match="Valid status"):
             await reservation_service.update_reservation_status("x", "weird")
 
-    async def test_update_reservation_status_missing_returns_none(self, clean_db, reservation_service: ReservationService):
+    async def test_update_reservation_status_missing_returns_none(
+        self, clean_db, reservation_service: ReservationService
+    ):
         assert await reservation_service.update_reservation_status("nope", "confirmed") is None
 
     async def test_list_reservations_filter(self, clean_db, reservation_service: ReservationService):
@@ -490,22 +520,26 @@ class TestAdminService:
 @pytest.fixture()
 async def menu_service(app) -> MenuService:
     from app.services.menu_service import MenuService
+
     return await app.container.resolve(MenuService)
 
 
 @pytest.fixture()
 async def order_service(app) -> OrderService:
     from app.services.order_service import OrderService
+
     return await app.container.resolve(OrderService)
 
 
 @pytest.fixture()
 async def reservation_service(app) -> ReservationService:
     from app.services.reservation_service import ReservationService
+
     return await app.container.resolve(ReservationService)
 
 
 @pytest.fixture()
 async def admin_service(app) -> AdminService:
     from app.services.admin_service import AdminService
+
     return await app.container.resolve(AdminService)

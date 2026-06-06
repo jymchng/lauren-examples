@@ -24,6 +24,7 @@ def _generate_order_number() -> str:
         ts36 = ""
     # Simpler approach
     import base36
+
     ...  # fallback to hex
     return f"LE-{hex(ts)[2:].upper()}-{''.join(random.choices(string.ascii_uppercase + string.digits, k=4))}"
 
@@ -132,14 +133,16 @@ class OrderService:
             mi = menu_map[_item_id(it)]
             qty = it.get("quantity", 1)
             total_price = round(mi["price"] * qty, 2)
-            order_items_data.append({
-                "id": _new_id(),
-                "menu_item_id": _item_id(it),
-                "quantity": qty,
-                "unit_price": mi["price"],
-                "total_price": total_price,
-                "notes": it.get("notes"),
-            })
+            order_items_data.append(
+                {
+                    "id": _new_id(),
+                    "menu_item_id": _item_id(it),
+                    "quantity": qty,
+                    "unit_price": mi["price"],
+                    "total_price": total_price,
+                    "notes": it.get("notes"),
+                }
+            )
 
         subtotal = round(sum(oi["total_price"] for oi in order_items_data), 2)
         tax = round(subtotal * 0.08, 2)
@@ -151,16 +154,32 @@ class OrderService:
         await self._db.execute(
             """INSERT INTO orders (id, user_id, order_number, status, total_amount, subtotal, tax, discount, notes, type, table_number)
                VALUES (?, ?, ?, 'pending', ?, ?, ?, 0, ?, ?, ?)""",
-            (order_id, data.get("userId") or data.get("user_id"), order_number, total_amount, subtotal, tax,
-             data.get("notes"), order_type, data.get("tableNumber") or data.get("table_number")),
+            (
+                order_id,
+                data.get("userId") or data.get("user_id"),
+                order_number,
+                total_amount,
+                subtotal,
+                tax,
+                data.get("notes"),
+                order_type,
+                data.get("tableNumber") or data.get("table_number"),
+            ),
         )
 
         for oi in order_items_data:
             await self._db.execute(
                 """INSERT INTO order_items (id, order_id, menu_item_id, quantity, unit_price, total_price, notes)
                    VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                (oi["id"], order_id, oi["menu_item_id"], oi["quantity"],
-                 oi["unit_price"], oi["total_price"], oi.get("notes")),
+                (
+                    oi["id"],
+                    order_id,
+                    oi["menu_item_id"],
+                    oi["quantity"],
+                    oi["unit_price"],
+                    oi["total_price"],
+                    oi.get("notes"),
+                ),
             )
 
         return await self.get_order(order_id)  # type: ignore

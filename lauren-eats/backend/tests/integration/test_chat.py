@@ -24,7 +24,9 @@ from app.services.chat_service import ChatService
 class TestChatE2E:
     async def test_post_chat_streams_sse(self, client, mock_transport):
         # queue a stream of two deltas + finish
-        mock_transport.queue_stream([CompletionChunk(delta='Hello'), CompletionChunk(delta=' world'), CompletionChunk(delta='')])
+        mock_transport.queue_stream(
+            [CompletionChunk(delta="Hello"), CompletionChunk(delta=" world"), CompletionChunk(delta="")]
+        )
         resp = client.post(
             "/api/chat/",
             json={"message": "Hi", "agent_type": "concierge"},
@@ -54,7 +56,7 @@ class TestChatE2E:
         assert resp.status_code == 400
 
     async def test_post_chat_meta_event_includes_conversation_id(self, client, mock_transport):
-        mock_transport.queue_stream([CompletionChunk(delta='ok')])
+        mock_transport.queue_stream([CompletionChunk(delta="ok")])
         resp = client.post(
             "/api/chat/",
             json={"message": "Hi", "agent_type": "concierge"},
@@ -72,7 +74,7 @@ class TestChatE2E:
         assert len(meta["conversationId"]) > 0
 
     async def test_post_chat_continues_conversation(self, client, mock_transport):
-        mock_transport.queue_stream([CompletionChunk(delta='first')])
+        mock_transport.queue_stream([CompletionChunk(delta="first")])
         r1 = client.post(
             "/api/chat/",
             json={"message": "first", "agent_type": "concierge"},
@@ -80,7 +82,7 @@ class TestChatE2E:
         assert r1.status_code == 200
         # The chat service persists both messages; subsequent calls reuse
         # the conversation id by reading it back from history.
-        mock_transport.queue_stream([CompletionChunk(delta='second')])
+        mock_transport.queue_stream([CompletionChunk(delta="second")])
         r2 = client.post(
             "/api/chat/",
             json={"message": "second", "agent_type": "concierge"},
@@ -95,24 +97,22 @@ class TestChatE2E:
 
 class TestChatServiceComplete:
     async def test_complete_returns_final_text(self, app, mock_transport):
-        mock_transport.queue_stream([CompletionChunk(delta='Hi'), CompletionChunk(delta=' there')])
+        mock_transport.queue_stream([CompletionChunk(delta="Hi"), CompletionChunk(delta=" there")])
         svc = await app.container.resolve(ChatService)
         text = await svc.complete("hello")
         assert text == "Hi there"
 
     async def test_complete_persists_user_and_assistant(self, app, clean_db, mock_transport):
-        mock_transport.queue_stream([CompletionChunk(delta='ack')])
+        mock_transport.queue_stream([CompletionChunk(delta="ack")])
         svc = await app.container.resolve(ChatService)
         await svc.complete("hello")
-        rows = await clean_db.fetch_all(
-            "SELECT role, content FROM agent_messages ORDER BY created_at ASC"
-        )
+        rows = await clean_db.fetch_all("SELECT role, content FROM agent_messages ORDER BY created_at ASC")
         assert [r["role"] for r in rows] == ["user", "assistant"]
         assert rows[0]["content"] == "hello"
         assert rows[1]["content"] == "ack"
 
     async def test_complete_creates_conversation(self, app, clean_db, mock_transport):
-        mock_transport.queue_stream([CompletionChunk(delta='ack')])
+        mock_transport.queue_stream([CompletionChunk(delta="ack")])
         svc = await app.container.resolve(ChatService)
         await svc.complete("hi", agent_type="food_recommender")
         row = await clean_db.fetch_one("SELECT * FROM conversations")
@@ -122,16 +122,16 @@ class TestChatServiceComplete:
         assert row["title"] == "hi"
 
     async def test_complete_reuses_conversation(self, app, clean_db, mock_transport):
-        mock_transport.queue_stream([CompletionChunk(delta='ack1')])
+        mock_transport.queue_stream([CompletionChunk(delta="ack1")])
         svc = await app.container.resolve(ChatService)
         conv_id = await svc._ensure_conversation(None, "concierge", "first")
-        mock_transport.queue_stream([CompletionChunk(delta='ack2')])
+        mock_transport.queue_stream([CompletionChunk(delta="ack2")])
         await svc.complete("second", conversation_id=conv_id)
         rows = await clean_db.fetch_all("SELECT id FROM conversations")
         assert len(rows) == 1
 
     async def test_complete_unknown_agent_falls_back_to_concierge(self, app, mock_transport):
-        mock_transport.queue_stream([CompletionChunk(delta='fallback')])
+        mock_transport.queue_stream([CompletionChunk(delta="fallback")])
         svc = await app.container.resolve(ChatService)
         text = await svc.complete("hello", agent_type="nonexistent")
         assert text == "fallback"
@@ -200,24 +200,16 @@ class TestHandoffInfo:
 
         h = _HandoffInfo()
         h.observe(
+            CompletionChunk(tool_call_delta=ToolCallDelta(tool_use_id="t1", name="HandoffTo", input_delta=""))
+        )
+        h.observe(
             CompletionChunk(
-                tool_call_delta=ToolCallDelta(
-                    tool_use_id="t1", name="HandoffTo", input_delta=""
-                )
+                tool_call_delta=ToolCallDelta(tool_use_id="t1", name=None, input_delta='{"to_agent"')
             )
         )
         h.observe(
             CompletionChunk(
-                tool_call_delta=ToolCallDelta(
-                    tool_use_id="t1", name=None, input_delta='{"to_agent"'
-                )
-            )
-        )
-        h.observe(
-            CompletionChunk(
-                tool_call_delta=ToolCallDelta(
-                    tool_use_id="t1", name=None, input_delta=': "Food Expert"}'
-                )
+                tool_call_delta=ToolCallDelta(tool_use_id="t1", name=None, input_delta=': "Food Expert"}')
             )
         )
         assert h.to_agent == "Food Expert"
@@ -271,7 +263,9 @@ class TestHandoffInfo:
         assert "data: [DONE]" in body
 
     async def test_stream_chat_yields_meta_then_deltas_then_done(self, app, mock_transport):
-        mock_transport.queue_stream([CompletionChunk(delta='a'), CompletionChunk(delta='b'), CompletionChunk(delta='c')])
+        mock_transport.queue_stream(
+            [CompletionChunk(delta="a"), CompletionChunk(delta="b"), CompletionChunk(delta="c")]
+        )
         svc = await app.container.resolve(ChatService)
         chunks = []
         async for chunk in svc.stream_chat("hi"):

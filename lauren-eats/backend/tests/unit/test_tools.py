@@ -301,48 +301,71 @@ class TestCheckOrderStatusTool:
 class TestCreateReservationTool:
     async def test_missing_name(self, clean_db, ctx, app):
         t = await _resolve(CreateReservationTool, app)
-        r = await t.run(ctx, customer_name="", customer_phone="555", party_size=2, date="2025-12-31", time="19:00")
+        r = await t.run(
+            ctx, customer_name="", customer_phone="555", party_size=2, date="2025-12-31", time="19:00"
+        )
         assert "error" in r
 
     async def test_missing_phone(self, clean_db, ctx, app):
         t = await _resolve(CreateReservationTool, app)
-        r = await t.run(ctx, customer_name="X", customer_phone="", party_size=2, date="2025-12-31", time="19:00")
+        r = await t.run(
+            ctx, customer_name="X", customer_phone="", party_size=2, date="2025-12-31", time="19:00"
+        )
         assert "error" in r
 
     async def test_invalid_party_size(self, clean_db, ctx, app):
         t = await _resolve(CreateReservationTool, app)
-        r = await t.run(ctx, customer_name="X", customer_phone="555", party_size=21, date="2025-12-31", time="19:00")
+        r = await t.run(
+            ctx, customer_name="X", customer_phone="555", party_size=21, date="2025-12-31", time="19:00"
+        )
         assert "party_size" in r["error"]
 
     async def test_non_int_party_size(self, clean_db, ctx, app):
         t = await _resolve(CreateReservationTool, app)
-        r = await t.run(ctx, customer_name="X", customer_phone="555", party_size="abc", date="2025-12-31", time="19:00")
+        r = await t.run(
+            ctx, customer_name="X", customer_phone="555", party_size="abc", date="2025-12-31", time="19:00"
+        )
         assert "integer" in r["error"]
 
     async def test_invalid_date(self, clean_db, ctx, app):
         t = await _resolve(CreateReservationTool, app)
-        r = await t.run(ctx, customer_name="X", customer_phone="555", party_size=2, date="12/31/2025", time="19:00")
+        r = await t.run(
+            ctx, customer_name="X", customer_phone="555", party_size=2, date="12/31/2025", time="19:00"
+        )
         assert "YYYY-MM-DD" in r["error"]
 
     async def test_invalid_time(self, clean_db, ctx, app):
         t = await _resolve(CreateReservationTool, app)
-        r = await t.run(ctx, customer_name="X", customer_phone="555", party_size=2, date="2025-12-31", time="7pm")
+        r = await t.run(
+            ctx, customer_name="X", customer_phone="555", party_size=2, date="2025-12-31", time="7pm"
+        )
         assert "HH:MM" in r["error"]
 
     async def test_invalid_occasion(self, clean_db, ctx, app):
         t = await _resolve(CreateReservationTool, app)
         r = await t.run(
-            ctx, customer_name="X", customer_phone="555", party_size=2,
-            date="2025-12-31", time="19:00", occasion="divorce",
+            ctx,
+            customer_name="X",
+            customer_phone="555",
+            party_size=2,
+            date="2025-12-31",
+            time="19:00",
+            occasion="divorce",
         )
         assert "Invalid occasion" in r["error"]
 
     async def test_success(self, clean_db, ctx, app):
         t = await _resolve(CreateReservationTool, app)
         r = await t.run(
-            ctx, customer_name="Alice", customer_phone="555", party_size=4,
-            date="2025-12-31", time="19:00", customer_email="a@x.com",
-            occasion="birthday", special_requests="window seat",
+            ctx,
+            customer_name="Alice",
+            customer_phone="555",
+            party_size=4,
+            date="2025-12-31",
+            time="19:00",
+            customer_email="a@x.com",
+            occasion="birthday",
+            special_requests="window seat",
         )
         assert r["reservationCreated"] is True
         assert r["partySize"] == 4
