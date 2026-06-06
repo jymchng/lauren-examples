@@ -67,16 +67,17 @@ class MenuController:
         spicyLevel: int = 0,
         isPopular: bool = False,
     ) -> dict:
+        spicy_max = spicyLevel if spicyLevel > 0 else None
         result = await self._svc.list_menu_items(
             page=page,
             limit=min(100, max(1, limit)),
             category=category,
             search=search or None,
-            is_vegetarian=isVegetarian,
-            is_vegan=isVegan,
-            is_gluten_free=isGlutenFree,
-            spicy_level=spicyLevel,
-            is_popular=isPopular,
+            is_vegetarian=isVegetarian or None,
+            is_vegan=isVegan or None,
+            is_gluten_free=isGlutenFree or None,
+            spicy_level=spicy_max,
+            is_popular=isPopular or None,
         )
         return {"success": True, "data": result["data"], "pagination": result["pagination"]}
 

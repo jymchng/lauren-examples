@@ -72,3 +72,10 @@ class ReservationController:
         if reservation is None:
             raise ReservationNotFound(id)
         return {"success": True, "data": reservation}
+
+    @get("/{id}")
+    async def get_reservation(self, id: str = Path()) -> dict:
+        reservation = await self._svc.get_reservation(id)
+        if reservation is None:
+            raise ReservationNotFound(id)
+        return {"success": True, "data": reservation}

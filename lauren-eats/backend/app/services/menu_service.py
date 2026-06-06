@@ -175,20 +175,25 @@ class MenuService:
 
         sets: list[str] = []
         params: list = []
-        field_map = {
-            "is_available": "isAvailable",
-            "is_popular": "isPopular",
-            "price": "price",
-            "name": "name",
-            "description": "description",
+        allowed_fields = {"is_available", "is_popular", "price", "name", "description"}
+        camel_aliases = {
+            "isAvailable": "is_available",
+            "isPopular": "is_popular",
         }
-        for db_field, json_field in field_map.items():
-            if json_field in data and data[json_field] is not None:
-                val = data[json_field]
-                if db_field.startswith("is_"):
-                    val = 1 if val else 0
-                sets.append(f"{db_field} = ?")
-                params.append(val)
+        for db_field in allowed_fields:
+            value = data.get(db_field)
+            if value is None:
+                for alias, snake in camel_aliases.items():
+                    if snake == db_field and alias in data:
+                        value = data[alias]
+                        break
+            if value is None:
+                continue
+            val = value
+            if db_field.startswith("is_"):
+                val = 1 if val else 0
+            sets.append(f"{db_field} = ?")
+            params.append(val)
 
         if not sets:
             return existing

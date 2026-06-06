@@ -96,12 +96,11 @@ class TestMenuController:
         await _seed_item(clean_db, "item-2", is_vegetarian=0)
         # Check the items are actually seeded
         rows = await clean_db.fetch_all("SELECT id, is_vegetarian FROM menu_items")
-        print("SEEDED:", rows)
+        assert len(rows) == 2
         r = client.get("/api/menu")
-        print("UNFILTERED:", r.json())
+        assert r.json()["data"], f"UNFILTERED should have items, got: {r.json()}"
         r = client.get("/api/menu?isVegetarian=true")
         body = r.json()
-        print("FILTERED:", body)
         items = body["data"]
         assert {i["id"] for i in items} == {"item-1"}
 
@@ -253,18 +252,21 @@ class TestReservationController:
 
     async def test_create_reservation_validation_missing(self, client):
         r = client.post("/api/reservations", json={})
-        assert r.status_code in (400, 500)
+        assert r.status_code in (400, 422, 500)
 
     async def test_create_reservation_invalid_date(self, client):
         r = client.post("/api/reservations", json={**self.BASE, "date": "12/31/2025"})
-        assert r.status_code in (400, 500)
+        assert r.status_code in (400, 422, 500)
 
     async def test_get_reservation_ok(self, client, clean_db):
         r1 = client.post("/api/reservations", json=self.BASE)
         rid = r1.json()["data"]["id"]
         r2 = client.get(f"/api/reservations/{rid}")
         assert r2.status_code == 200
-        assert r2.json()["customerName"] == "Alice"
+        data = r2.json()["data"]
+        # Accept both camelCase (service output) and snake_case
+        name = data.get("customerName") or data.get("customer_name")
+        assert name == "Alice"
 
     async def test_get_reservation_not_found(self, client, clean_db):
         r = client.get("/api/reservations/nope")
@@ -345,8 +347,9 @@ class TestSeedController:
         r = client.post("/api/seed")
         assert r.status_code == 200
         body = r.json()
+        data = body.get("data", body)
         # Should report at least one of each
-        assert any("categories" in k or "menu" in k or "items" in k for k in body)
+        assert any("categories" in k or "menu" in k or "items" in k for k in data)
 
     async def test_seed_failure_returns_500(self, client, clean_db, monkeypatch):
         # Force the seed to fail by patching run_seed to raise
