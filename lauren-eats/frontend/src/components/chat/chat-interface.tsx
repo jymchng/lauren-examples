@@ -732,12 +732,14 @@ export function ChatInterface() {
           ) : (
             <div className="py-4 space-y-1">
               <AnimatePresence mode="popLayout">
-                {messages.map((msg) => (
-                  <MessageBubble key={msg.id} message={msg} />
-                ))}
+                {messages
+                  .filter(msg => !(msg.isStreaming && msg.content === ''))
+                  .map((msg) => (
+                    <MessageBubble key={msg.id} message={msg} />
+                  ))}
               </AnimatePresence>
 
-              {/* Typing indicator */}
+              {/* Typing indicator — shown while waiting for the first token */}
               <AnimatePresence>
                 {isStreaming &&
                   messages[messages.length - 1]?.content === '' && (
