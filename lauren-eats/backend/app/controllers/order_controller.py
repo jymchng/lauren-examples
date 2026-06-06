@@ -17,8 +17,8 @@ from lauren import (
     controller,
     exception_handler,
     get,
+    patch,
     post,
-    put,
     use_exception_handlers,
 )
 from lauren import exception_handler
@@ -75,7 +75,7 @@ class OrderController:
             raise OrderNotFound(id)
         return {"success": True, "data": order}
 
-    @put("/{id}")
+    @patch("/{id}")
     async def update_order(
         self,
         id: str = Path(),

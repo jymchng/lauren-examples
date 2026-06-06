@@ -203,6 +203,7 @@ class ChatService:
         agent_cls = _agent_class(agent_type)
         runner = await self._runner_for(agent_cls)
         full_text = ""
+        handoff_info = _HandoffInfo()
         stream = await runner.run_stream(
             agent_cls(),
             message,
@@ -213,6 +214,16 @@ class ChatService:
             if chunk.delta:
                 full_text += chunk.delta
                 yield _sse_chunk(chunk.delta)
+            handoff_info.observe(chunk)
+
+        # If the agent used the HandoffTo tool, emit a handoff SSE event
+        # so the frontend can switch the active agent display and show a
+        # transfer message.  The framework's runner updates the active
+        # agent in the conversation row; we just mirror that to the wire.
+        if handoff_info.to_agent:
+            payload = handoff_info.to_sse(agent_type)
+            if payload is not None:
+                yield f"data: {json.dumps(payload)}\n\n".encode()
 
         await self._persist_assistant_message(conv_id, full_text, agent_type)
         yield b"data: [DONE]\n\n"
@@ -241,3 +252,72 @@ def _sse_chunk(delta: str) -> bytes:
         "choices": [{"delta": {"content": delta}, "index": 0, "finish_reason": None}],
     }
     return f"data: {json.dumps(payload)}\n\n".encode()
+
+
+class _HandoffInfo:
+    """Accumulates :class:`ToolCallDelta` chunks to detect a ``HandoffTo`` call.
+
+    The streaming transport delivers tool calls as a sequence of
+    ``tool_call_delta`` chunks — first the tool name, then partial JSON
+    fragments.  We collect the fragments until the call completes, then
+    attempt to parse out the ``to_agent`` field.
+
+    Display-name → agent-type lookup mirrors ``HandoffTo._by_name`` so the
+    SSE event mirrors what the frontend's existing handoff handler expects.
+    """
+
+    _DISPLAY_NAMES: dict[str, str] = {
+        "concierge": "Concierge",
+        "food_recommender": "Food Expert",
+        "dietary": "Dietary Guide",
+        "ordering": "Order Assistant",
+        "reservation": "Reservation Desk",
+        "support": "Support",
+    }
+    _AGENT_EMOJI: dict[str, str] = {
+        "concierge": "🎩",
+        "food_recommender": "🍜",
+        "dietary": "🥬",
+        "ordering": "🛒",
+        "reservation": "📅",
+        "support": "🛟",
+    }
+    _BY_DISPLAY: dict[str, str] = {v: k for k, v in _DISPLAY_NAMES.items()}
+
+    def __init__(self) -> None:
+        self._buffer: str = ""
+        self._saw_handoff: bool = False
+        self.to_agent: str | None = None
+
+    def observe(self, chunk) -> None:
+        tcd = chunk.tool_call_delta
+        if tcd is None:
+            return
+        if tcd.name == "HandoffTo" and not self._saw_handoff:
+            self._saw_handoff = True
+        if self._saw_handoff and tcd.input_delta:
+            self._buffer += tcd.input_delta
+            try:
+                parsed = json.loads(self._buffer)
+            except json.JSONDecodeError:
+                return
+            target = parsed.get("to_agent")
+            if isinstance(target, str) and target in self._DISPLAY_NAMES.values():
+                self.to_agent = target
+
+    def to_sse(self, from_agent: str | None) -> dict | None:
+        """Build a ``type: 'handoff'`` SSE payload mirroring the frontend's schema."""
+        from_key = from_agent or "concierge"
+        to_display = self.to_agent
+        if to_display is None:
+            return None
+        return {
+            "type": "handoff",
+            "fromAgent": from_key,
+            "toAgent": self._BY_DISPLAY[to_display],
+            "fromAgentName": self._DISPLAY_NAMES.get(from_key, "Assistant"),
+            "toAgentName": to_display,
+            "fromAgentEmoji": self._AGENT_EMOJI.get(from_key, "🤖"),
+            "toAgentEmoji": self._AGENT_EMOJI.get(self._BY_DISPLAY[to_display], "🤖"),
+            "reason": f"Transferring you to {to_display}",
+        }

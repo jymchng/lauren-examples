@@ -182,6 +182,94 @@ class TestChatServiceComplete:
         history = await svc._load_history("c1")
         assert [m.role for m in history] == ["user"]
 
+
+class TestHandoffInfo:
+    """Unit tests for the SSE-side handoff detector in :mod:`chat_service`."""
+
+    def test_ignores_chunks_with_no_tool_delta(self):
+        from app.services.chat_service import _HandoffInfo
+        from lauren_ai._transport import CompletionChunk
+
+        h = _HandoffInfo()
+        h.observe(CompletionChunk(delta="hi"))
+        assert h.to_agent is None
+
+    def test_detects_handoff_to_food_expert(self):
+        from app.services.chat_service import _HandoffInfo
+        from lauren_ai._transport import CompletionChunk, ToolCallDelta
+
+        h = _HandoffInfo()
+        h.observe(
+            CompletionChunk(
+                tool_call_delta=ToolCallDelta(
+                    tool_use_id="t1", name="HandoffTo", input_delta=""
+                )
+            )
+        )
+        h.observe(
+            CompletionChunk(
+                tool_call_delta=ToolCallDelta(
+                    tool_use_id="t1", name=None, input_delta='{"to_agent"'
+                )
+            )
+        )
+        h.observe(
+            CompletionChunk(
+                tool_call_delta=ToolCallDelta(
+                    tool_use_id="t1", name=None, input_delta=': "Food Expert"}'
+                )
+            )
+        )
+        assert h.to_agent == "Food Expert"
+
+    def test_to_sse_payload_shape(self):
+        from app.services.chat_service import _HandoffInfo
+
+        h = _HandoffInfo()
+        h.to_agent = "Order Assistant"
+        payload = h.to_sse("concierge")
+        assert payload["type"] == "handoff"
+        assert payload["fromAgent"] == "concierge"
+        assert payload["toAgent"] == "ordering"
+        assert payload["fromAgentName"] == "Concierge"
+        assert payload["toAgentName"] == "Order Assistant"
+        assert payload["fromAgentEmoji"] == "🎩"
+        assert payload["toAgentEmoji"] == "🛒"
+        assert "Order Assistant" in payload["reason"]
+
+    def test_to_sse_returns_none_without_target(self):
+        from app.services.chat_service import _HandoffInfo
+
+        h = _HandoffInfo()
+        assert h.to_sse("concierge") is None
+
+    def test_stream_chat_emits_handoff_event(self, client, mock_transport):
+        """End-to-end: concierge calls HandoffTo → SSE carries type:handoff."""
+        from lauren_ai._transport import CompletionChunk, ToolCallDelta
+
+        mock_transport.queue_stream(
+            [
+                CompletionChunk(delta="Let me connect you..."),
+                CompletionChunk(
+                    tool_call_delta=ToolCallDelta(
+                        tool_use_id="t1",
+                        name="HandoffTo",
+                        input_delta='{"to_agent": "Reservation Desk", "summary": "books"}',
+                    )
+                ),
+            ]
+        )
+        resp = client.post(
+            "/api/chat/",
+            json={"message": "Book a table for tonight", "agent_type": "concierge"},
+        )
+        assert resp.status_code == 200
+        body = resp.text
+        assert '"type": "handoff"' in body
+        assert '"toAgent": "reservation"' in body
+        assert '"toAgentName": "Reservation Desk"' in body
+        assert "data: [DONE]" in body
+
     async def test_stream_chat_yields_meta_then_deltas_then_done(self, app, mock_transport):
         mock_transport.queue_stream([CompletionChunk(delta='a'), CompletionChunk(delta='b'), CompletionChunk(delta='c')])
         svc = await app.container.resolve(ChatService)

@@ -66,7 +66,20 @@ class MenuController:
         isGlutenFree: bool = False,
         spicyLevel: int = 0,
         isPopular: bool = False,
+        dietary: str = "",
     ) -> dict:
+        # Frontend sends `dietary` as a comma-separated list of
+        # "vegetarian", "vegan", "glutenFree" (the legacy camelCase
+        # ``isVegetarian`` / ``isVegan`` / ``isGlutenFree`` booleans are
+        # also accepted for backward compatibility).
+        diet_set = {d.strip() for d in dietary.split(",") if d.strip()}
+        if "vegetarian" in diet_set:
+            isVegetarian = True
+        if "vegan" in diet_set:
+            isVegan = True
+        if "glutenFree" in diet_set:
+            isGlutenFree = True
+
         spicy_max = spicyLevel if spicyLevel > 0 else None
         result = await self._svc.list_menu_items(
             page=page,

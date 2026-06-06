@@ -12,8 +12,8 @@ from lauren import (
     controller,
     exception_handler,
     get,
+    patch,
     post,
-    put,
     use_exception_handlers,
 )
 
@@ -62,7 +62,7 @@ class ReservationController:
         )
         return {"success": True, "data": reservation}, 201
 
-    @put("/{id}")
+    @patch("/{id}")
     async def update_reservation(
         self,
         id: str = Path(),

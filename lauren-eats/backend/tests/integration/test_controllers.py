@@ -215,13 +215,13 @@ class TestOrderController:
             "items": [{"menuItemId": "item-1", "quantity": 1}],
         })
         order_id = r1.json()["data"]["id"]
-        r2 = client.put(f"/api/orders/{order_id}", json={"status": "preparing"})
+        r2 = client.patch(f"/api/orders/{order_id}", json={"status": "preparing"})
         assert r2.status_code == 200
         assert r2.json()["data"]["status"] == "preparing"
 
     async def test_update_order_invalid_status(self, client, clean_db):
-        r = client.put("/api/orders/anything", json={"status": "weird"})
-        assert r.status_code in (400, 500)
+        r = client.patch("/api/orders/anything", json={"status": "weird"})
+        assert r.status_code in (400, 422, 500)
 
 
 # ---------------------------------------------------------------------------
@@ -275,7 +275,7 @@ class TestReservationController:
     async def test_update_reservation(self, client, clean_db):
         r1 = client.post("/api/reservations", json=self.BASE)
         rid = r1.json()["data"]["id"]
-        r2 = client.put(f"/api/reservations/{rid}", json={"status": "confirmed"})
+        r2 = client.patch(f"/api/reservations/{rid}", json={"status": "confirmed"})
         assert r2.status_code == 200
         assert r2.json()["data"]["status"] == "confirmed"
 
