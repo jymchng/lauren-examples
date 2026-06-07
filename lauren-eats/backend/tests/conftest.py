@@ -34,6 +34,18 @@ import sys  # noqa: E402
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _preload_lauren():
+    """Pre-import Lauren with all optional deps available.
+
+    This must run before any test that blocks pydantic; otherwise
+    _PYDANTIC_AVAILABLE is permanently False for the whole session.
+    """
+    import lauren  # noqa: F401
+    import lauren.extractors  # noqa: F401
+    import lauren.streaming  # noqa: F401
+
+
 _TABLES_TO_RESET = (
     "agent_messages",
     "conversations",
