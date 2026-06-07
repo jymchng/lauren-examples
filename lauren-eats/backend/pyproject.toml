@@ -17,15 +17,15 @@ dependencies = [
     "uvicorn[standard]>=0.29",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
-    # "lauren @ file:///root/python_projects/lauren-all/lauren-framework",
-    # "lauren-ai[openai] @ file:///root/python_projects/lauren-all/lauren-ai",
+    "lauren @ file:///root/python_projects/lauren-all/lauren-framework",
+    "lauren-ai[openai] @ file:///root/python_projects/lauren-all/lauren-ai",
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
     "pytest-cov>=5.0",
     "ruff>=0.4",
-    "mypy>=1.10",
+    "nox>=2024.0",
 ]
 
 [tool.ruff]
