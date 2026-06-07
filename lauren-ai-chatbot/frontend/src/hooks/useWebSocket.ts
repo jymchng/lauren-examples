@@ -94,7 +94,7 @@ export function useWebSocket({
 
       ws.onopen = () => setConnected(true);
       ws.onclose = () => setConnected(false);
-      ws.onerror = (e) => console.warn("[WS] error:", e);
+      ws.onerror = (e) => console.warn("[WS] error:", JSON.stringify(e));
       ws.onmessage = (e) => {
         try {
           const evt = JSON.parse(e.data as string) as WsEvent;
