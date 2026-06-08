@@ -11,6 +11,8 @@ Each example is a self-contained, full-stack project demonstrating real patterns
 | Example | Description | Stack |
 |---------|-------------|-------|
 | [**lauren-ai-chatbot**](./lauren-ai-chatbot/) | Full-stack AI chatbot with public and authenticated agent routing, SSE streaming, HMAC-signed requests, `msgspec` payloads, guardrails, live WebSocket telemetry, and HITL transfer approval | Python · Lauren · Lauren AI · Next.js · OpenRouter · msgspec |
+| [**lauren-eats**](./lauren-eats/) | AI-powered Chinese restaurant platform with 6 specialist agents, agent handoffs, SSE streaming, menu browsing, order management, table reservations, and an admin dashboard with AI-generated insights | Python · Lauren · Lauren AI · Next.js · SQLite · OpenRouter |
+| [**lauren-urlshortener**](./lauren-urlshortener/) | Minimal URL shortener — create short codes, redirect, list, and deactivate links. Demonstrates Lauren without Pydantic using only stdlib types and `dataclass` models | Python · Lauren · SQLite |
 
 ---
 

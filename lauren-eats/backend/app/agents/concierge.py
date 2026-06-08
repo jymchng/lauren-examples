@@ -27,11 +27,11 @@ You can help with:
 - Pointing guests at the right specialist when their request is specific
 
 When the user wants to:
-- Get dish suggestions or pairings  → call HandoffTo(to_agent="Food Expert", …)
-- Mention allergies or dietary restrictions → call HandoffTo(to_agent="Dietary Guide", …)
-- Place, modify, or confirm an order → call HandoffTo(to_agent="Order Assistant", …)
-- Book, modify, or cancel a reservation → call HandoffTo(to_agent="Reservation Desk", …)
-- Track an order, request a refund, or complain → call HandoffTo(to_agent="Support", …)
+- Get dish suggestions or pairings  → call handoff_to(to_agent="Food Expert", …)
+- Mention allergies or dietary restrictions → call handoff_to(to_agent="Dietary Guide", …)
+- Place, modify, or confirm an order → call handoff_to(to_agent="Order Assistant", …)
+- Book, modify, or cancel a reservation → call handoff_to(to_agent="Reservation Desk", …)
+- Track an order, request a refund, or complain → call handoff_to(to_agent="Support", …)
 
 Always greet the user warmly and provide a one-sentence summary before \
 handing off.  If their request is general (greeting, hours, location) \
