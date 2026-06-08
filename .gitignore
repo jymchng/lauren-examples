@@ -1,3 +1,6 @@
+# Claude Code memory / project state
+.claude/
+
 # Logs
 logs
 *.log

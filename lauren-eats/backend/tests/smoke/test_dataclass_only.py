@@ -18,6 +18,15 @@ from typing import Literal, TypedDict
 
 import pytest
 
+HAS_PYDANTIC = False
+try:
+    import pydantic
+    HAS_PYDANTIC = True
+except ImportError:
+    pass
+
+assert not HAS_PYDANTIC, "This test must run with pydantic unavailable in sys.modules"
+    
 
 # ---------------------------------------------------------------------------
 # Block pydantic for the entire module before any Lauren imports happen.

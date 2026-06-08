@@ -1,0 +1,37 @@
+# Virtual environment
+.venv/
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+dist/
+build/
+
+# Test / coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# SQLite databases
+*.db
+*.db-shm
+*.db-wal
+# URI-mode artefacts created when aiosqlite opens a path literally instead of as a URI
+file::memory*
+
+# UV lock (not needed for an example project)
+uv.lock
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Editor
+.vscode/
+.idea/
